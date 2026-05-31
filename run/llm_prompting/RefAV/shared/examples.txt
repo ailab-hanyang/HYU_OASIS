@@ -1,0 +1,1162 @@
+```python
+# Pattern: vehicle in a lane reserved for a different class (BUS or BIKE lane)
+# Description: vehicle in the wrong lane
+all_objects    = get_objects_of_category(log_dir, category='ANY')
+in_bus_lane    = on_lane_type(all_objects, log_dir, lane_type='BUS')
+in_bike_lane   = on_lane_type(all_objects, log_dir, lane_type='BIKE')
+restricted_lanes = scenario_or([in_bus_lane, in_bike_lane])
+referred       = scenario_and([
+    scenario_not(is_category)(all_objects, log_dir, category='BUS'),
+    restricted_lanes,
+])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: simple lane-change behavior (uses changing_lanes)
+# Description: vehicle changing lanes
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = changing_lanes(vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: lateral acceleration filter (excludes objects within +/-1 m/s^2)
+# Description: accelerating to the side
+all_objects = get_objects_of_category(log_dir, category='ANY')
+referred    = scenario_not(has_lateral_acceleration)(all_objects, log_dir, min_accel=-1, max_accel=1)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: distance-based proximity to multiple related objects
+# Description: vehicle near multiple pedestrians
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+peds     = get_objects_of_category(log_dir, category='PEDESTRIAN')
+referred = near_objects(vehicles, peds, log_dir, min_objects=2)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: same-category group ("group of N X" / "multiple X" / "N+ X clustered")
+# Description: group of pedestrians
+# Note: group_of's min_objects INCLUDES the track itself (group of three -> min_objects=3).
+peds     = get_objects_of_category(log_dir, category='PEDESTRIAN')
+referred = group_of(peds, peds, log_dir, min_objects=3)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: group_of combined with directional/motion filter
+# Description: vehicle approaching a group of three pedestrians
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+moving_vehicles = active(vehicles, log_dir)
+peds            = get_objects_of_category(log_dir, category='PEDESTRIAN')
+ped_groups      = group_of(peds, peds, log_dir, min_objects=3)
+referred        = heading_toward(moving_vehicles, ped_groups, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: generic motion filter ("moving" / "walking" / "driving" / "active")
+# Description: moving vehicle
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = active(vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: speed-thresholded motion filter ("fast X" / "X driving above N m/s").
+# min_speed is m/s (km/h -> m/s = km/h / 3.6).
+# Description: vehicle driving faster than 5 m/s
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = active(vehicles, log_dir, min_speed=5.0)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: construction-zone proximity ("X near/in construction zone",
+# "X near construction cones/barrels", "X at work zone").
+# 3D distance to CONSTRUCTION_BARREL / CONSTRUCTION_CONE / SIGN combined.
+# Prefer this over near_infrastructure(..., 'construction_zone') for "the
+# object itself is in/near construction" readings.
+# Description: vehicle near construction zone
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = near_construction_objects(vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: construction-zone proximity combined with a behavior filter.
+# Description: ego vehicle changing lanes near construction
+ego                  = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+ego_near_construction = near_construction_objects(ego, log_dir)
+referred             = changing_lanes(ego_near_construction, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: subject in a [left|right] turn lane (track-level 3D map check).
+# Use in_turn_lane (not near_infrastructure 'turn_lane') for any
+# "the track itself is in a turn lane" reading; side='left'/'right' selects
+# the turn direction.
+# Description: ego vehicle slipping into left turn lane
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = in_turn_lane(ego, log_dir, side='left')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: making an unprotected turn (in [left|right] turn lane AND turning
+# in that direction). "opposite lane vehicle" is a related context cue —
+# the REFERRED is the subject executing the turn from the turn lane.
+# Description: making an unprotected left turn while there is a vehicle in the opposite left turn lane
+vehicles      = get_objects_of_category(log_dir, category='VEHICLE')
+ego           = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+subject       = scenario_or([vehicles, ego])
+in_left_lane  = in_turn_lane(subject, log_dir, side='left')
+referred      = turning(in_left_lane, log_dir, direction='left')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: in_turn_lane + spatial direction (X in turn lane, in front of ego).
+# Description: motorcyclist in front of ego vehicle in left turn lane
+motorcyclists  = get_objects_of_category(log_dir, category='MOTORCYCLIST')
+ego            = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+in_left_lane   = in_turn_lane(motorcyclists, log_dir, side='left')
+in_front       = get_objects_in_relative_direction(ego, motorcyclists, log_dir, direction='forward')
+referred       = scenario_and([in_left_lane, in_front])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "ego approaching static X" (peds at crossing / stopped vehicle / parked X).
+# Use has_objects_in_relative_direction(forward), NOT heading_toward, since the
+# target may be stationary (heading_toward requires target motion).
+# Description: ego vehicle approaching pedestrian at crosswalk
+ego              = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+peds             = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_at_crossing = at_pedestrian_crossing(peds, log_dir)
+referred         = has_objects_in_relative_direction(ego, peds_at_crossing, log_dir,
+                                                     direction='forward',
+                                                     within_distance=30, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN — approaching static X with heading_toward (DO NOT DO THIS)
+# Why bad: heading_toward needs target velocity. Peds at crossing / stopped X
+# have no usable velocity; heading_toward returns wildly different results.
+# # Description: ego vehicle approaching pedestrian at crosswalk  (BAD)
+# ego              = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# peds             = get_objects_of_category(log_dir, category='PEDESTRIAN')
+# peds_at_crossing = at_pedestrian_crossing(peds, log_dir)
+# referred         = heading_toward(ego, peds_at_crossing, log_dir, max_distance=50)  # wrong — peds stationary
+# output_scenario(referred, description, log_dir, output_dir)
+# # CORRECT: see anchor above using has_objects_in_relative_direction(forward).
+```
+```python
+# Pattern: "X waiting (stopped + target in front)" — NOT being_crossed_by.
+# Description: ego vehicle waiting for pedestrians to cross
+ego          = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+peds         = get_objects_of_category(log_dir, category='PEDESTRIAN')
+ego_stopped  = has_velocity(ego, log_dir, min_velocity=0.0, max_velocity=0.5)
+referred     = has_objects_in_relative_direction(ego_stopped, peds, log_dir,
+                                                  direction='forward',
+                                                  within_distance=20, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN — being_crossed_by for waiting / nearly-collides
+# Why bad: being_crossed_by needs perpendicular cross. "Waiting" = stationary
+# + target in front. "Nearly collides" = spatial proximity. Neither is a cross.
+# # Description: ego vehicle waiting for pedestrians to cross  (BAD)
+# ego         = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# peds        = get_objects_of_category(log_dir, category='PEDESTRIAN')
+# ego_stopped = has_velocity(ego, log_dir, min_velocity=0.0, max_velocity=0.5)
+# referred    = being_crossed_by(ego_stopped, peds, log_dir,
+#                                direction='forward', forward_thresh=15, lateral_thresh=6)
+# output_scenario(referred, description, log_dir, output_dir)
+# # CORRECT: has_objects_in_relative_direction(ego_stopped, peds, 'forward', ...).
+```
+```python
+# Pattern: "X and Y in [lane/area]" — simple scenario_or union.
+# Do NOT wrap in near_objects / scenario_and to "force both must be present".
+# Description: bicycle and vehicle traveling in bike lane
+bicycles              = get_objects_of_category(log_dir, category='BICYCLE')
+vehicles              = get_objects_of_category(log_dir, category='VEHICLE')
+moving_bicycles       = active(bicycles, log_dir)
+moving_vehicles       = active(vehicles, log_dir)
+bicycles_in_bike_lane = on_lane_type(moving_bicycles, log_dir, lane_type='BIKE')
+vehicles_in_bike_lane = on_lane_type(moving_vehicles, log_dir, lane_type='BIKE')
+referred              = scenario_or([bicycles_in_bike_lane, vehicles_in_bike_lane])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "parked X near [curb/sidewalk]" — near_infrastructure('sidewalk')
+# "curb" maps to the 'sidewalk' infrastructure label.
+# Description: vehicle parked on the curb
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+parked_vehicles = stationary(vehicles, log_dir)
+referred        = near_infrastructure(parked_vehicles, log_dir, infrastructure='sidewalk')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN — replacing near_infrastructure with generic atoms
+# Why bad: when the prompt names a labeled road element (curb/sidewalk/bus_stop/etc),
+# near_infrastructure(label) is the direct mapping. Replacing with
+# scenario_not(on_road) + in_drivable_area changes semantics.
+# # Description: vehicle parked on the curb  (BAD)
+# vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
+# parked      = stationary(vehicles, log_dir)
+# not_on_road = scenario_not(on_road)(parked, log_dir)
+# in_da       = in_drivable_area(parked, log_dir)
+# referred    = scenario_and([not_on_road, in_da])
+# output_scenario(referred, description, log_dir, output_dir)
+# # CORRECT: near_infrastructure(parked, log_dir, infrastructure='sidewalk').
+```
+```python
+# Pattern: temporal compound — filter SUBJECT only; do NOT post-process timestamps.
+# Evaluation handles count/duration alignment.
+# Description: ego vehicle making two right turns within 15 seconds
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = turning(ego, log_dir, direction='right')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X to the side of ego" (close lateral, at intersection).
+# Use get_objects_in_relative_direction(left|right), NOT being_crossed_by.
+# Description: vehicle nearly collides with side of ego vehicle at intersection
+ego              = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+vehicles_left    = get_objects_in_relative_direction(ego, vehicles, log_dir,
+                                                      direction='left',  within_distance=5, lateral_thresh=6)
+vehicles_right   = get_objects_in_relative_direction(ego, vehicles, log_dir,
+                                                      direction='right', within_distance=5, lateral_thresh=6)
+vehicles_at_side = scenario_or([vehicles_left, vehicles_right])
+referred         = on_intersection(vehicles_at_side, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "vehicle approaching X" — VEHICLE is the subject (NOT ego).
+# Same APPROACHING rule (target is static -> has_objects_in_relative_direction),
+# but do NOT include ego with scenario_or; the subject is "vehicle" only.
+# Description: vehicle approaching pedestrians waiting at a crosswalk
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+peds             = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_at_crossing = at_pedestrian_crossing(peds, log_dir)
+referred         = has_objects_in_relative_direction(vehicles, peds_at_crossing, log_dir,
+                                                     direction='forward',
+                                                     within_distance=30, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X passing/overtaking Y on the [side]" — X is the subject, REQUIRES
+# reverse_relationship around being_crossed_by (being_crossed_by always keys
+# by its first arg, which would be Y otherwise — wrong subject).
+# Description: bus passing ego vehicle on the right
+ego          = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+buses        = get_objects_of_category(log_dir, category='BUS')
+moving_buses = active(buses, log_dir)
+referred     = reverse_relationship(being_crossed_by)(
+    ego, moving_buses, log_dir,
+    direction='right', in_direction='either',
+    forward_thresh=10, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "subject between stopped Y" — Y is a parked cluster (use stationary).
+# Same applies for "near stopped Y" / "around stopped Y" — when stopped X
+# is the RELATED set in a relational query, it is a persistent halt.
+# Description: motorcycle between stopped vehicles
+motorcycles      = get_objects_of_category(log_dir, category='MOTORCYCLE')
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+stopped_vehicles = stationary(vehicles, log_dir)
+motos_with_left  = has_objects_in_relative_direction(motorcycles, stopped_vehicles, log_dir,
+                                                      direction='left',  within_distance=5, lateral_thresh=3)
+motos_with_right = has_objects_in_relative_direction(motorcycles, stopped_vehicles, log_dir,
+                                                      direction='right', within_distance=5, lateral_thresh=3)
+referred         = scenario_and([motos_with_left, motos_with_right])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X swerving" / "X swerves [side]" — lateral acceleration, NOT
+# a lane change. Use has_lateral_acceleration; only use changing_lanes when
+# the prompt explicitly says "lane change".
+# Description: passenger vehicle swerving left
+vehicles = get_objects_of_category(log_dir, category='REGULAR_VEHICLE')
+referred = has_lateral_acceleration(vehicles, log_dir, min_accel=2)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: construction-zone with a behavior filter (workers / vehicle turn).
+# near_construction_objects + behavior — chain is short, do not over-build.
+# Description: construction workers walking across the road
+peds                  = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_near_constr      = near_construction_objects(peds, log_dir)
+peds_on_road          = on_road(peds_near_constr, log_dir)
+referred              = active(peds_on_road, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X N cars ahead of Y is braking" — chain via repeated
+# get_objects_in_relative_direction + braking() (forward deceleration).
+# Description: vehicle two cars ahead is braking
+ego       = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles  = get_objects_of_category(log_dir, category='VEHICLE')
+one_ahead = get_objects_in_relative_direction(ego,       vehicles, log_dir,
+                                                direction='forward', min_number=1, max_number=1,
+                                                within_distance=50, lateral_thresh=3)
+two_ahead = get_objects_in_relative_direction(one_ahead, vehicles, log_dir,
+                                                direction='forward', min_number=1, max_number=1,
+                                                within_distance=50, lateral_thresh=3)
+referred  = braking(two_ahead, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: braking() — plain "X is braking" / "X braking at/near Y".
+# Forward deceleration. Use braking_hard() ONLY for explicit "hard/heavily".
+# Description: vehicle braking at pedestrian crossing
+vehicles            = get_objects_of_category(log_dir, category='VEHICLE')
+peds                = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_at_crossing    = at_pedestrian_crossing(peds, log_dir)
+vehicles_at_xing    = has_objects_in_relative_direction(vehicles, peds_at_crossing, log_dir,
+                                                         direction='forward',
+                                                         within_distance=20, lateral_thresh=4)
+referred            = braking(vehicles_at_xing, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: braking_hard() — explicit "hard / heavily / emergency" braking.
+# Use this ONLY when the prompt emphasizes severity; otherwise use braking().
+# Description: vehicle braking heavily
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = braking_hard(vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: braking_hard() with chain spatial relation.
+# Description: vehicle hard braking with another vehicle ahead
+vehicles            = get_objects_of_category(log_dir, category='VEHICLE')
+vehicles_with_ahead = has_objects_in_relative_direction(vehicles, vehicles, log_dir,
+                                                         direction='forward',
+                                                         within_distance=40, lateral_thresh=3)
+referred            = braking_hard(vehicles_with_ahead, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: braking_hard() for motorcyclists.
+# Description: motorcyclist braking hard
+motorcyclists = get_objects_of_category(log_dir, category='MOTORCYCLIST')
+referred      = braking_hard(motorcyclists, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: reversing() — explicit "reversing / backing up" prompts.
+# Track moves backward in its own body frame. Parked tracks excluded.
+# Description: ego vehicle reversing out of an intersection
+ego           = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+ego_reversing = reversing(ego, log_dir)
+referred      = on_intersection(ego_reversing, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: reversing() for parking maneuver.
+# Description: vehicle reversing to parallel park
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = reversing(vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: waiting_to_turn() — inside intersection turn lane AND at low speed.
+# Distinct from in_turn_lane (location only) — waiting_to_turn = location + speed.
+# Description: ego vehicle pulled onto intersection to make unprotected left turn
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = waiting_to_turn(ego, log_dir, side='left')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: waiting_to_turn() + spatial — waiting for adjacent turn-lane vehicle.
+# Description: ego vehicle waiting for vehicle in adjacent turn lane to pass them in order to turn
+ego              = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+ego_waiting      = waiting_to_turn(ego, log_dir, side='left')
+adjacent_in_lane = in_turn_lane(vehicles, log_dir, side='left')
+referred         = has_objects_in_relative_direction(ego_waiting, adjacent_in_lane, log_dir,
+                                                      direction='left',
+                                                      within_distance=10, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "vehicle waiting for ego to turn" — non-ego subject waiting near ego turn.
+# Description: vehicle waiting for ego vehicle to turn
+ego              = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+ego_turning      = turning(ego, log_dir)
+vehicles_waiting = waiting_to_turn(vehicles, log_dir)
+referred         = has_objects_in_relative_direction(vehicles_waiting, ego_turning, log_dir,
+                                                      direction='forward',
+                                                      within_distance=30, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN — active() on top of motion-implied filter
+# Why bad: at_pedestrian_crossing / being_crossed_by / turning / changing_lanes
+# already exclude stationary tracks. Adding active() on top is redundant AND
+# narrows the timestamp window unnecessarily.
+# # Description: ego vehicle approaching crossing pedestrians  (BAD)
+# peds         = get_objects_of_category(log_dir, category='PEDESTRIAN')
+# crossing     = at_pedestrian_crossing(peds, log_dir)
+# crossing     = active(crossing, log_dir)  # redundant — already filtered
+# ego          = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# referred     = has_objects_in_relative_direction(ego, crossing, log_dir,
+#                                                  direction='forward', within_distance=30, lateral_thresh=5)
+# output_scenario(referred, description, log_dir, output_dir)
+# # CORRECT: drop the active() wrap on crossing.
+```
+```python
+# Pattern: turn direction filter (use direction='left' or 'right')
+# Description: turning left
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = turning(vehicles, log_dir, direction='left')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: subject swap with reverse_relationship to make pedestrians the subject
+# Description: pedestrian crossing in front of vehicles
+vehicles            = get_objects_of_category(log_dir, category='VEHICLE')
+peds                = get_objects_of_category(log_dir, category='PEDESTRIAN')
+stationary_vehicles = stationary(vehicles, log_dir)
+referred            = reverse_relationship(being_crossed_by)(stationary_vehicles, peds, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: negation by wrapping the FUNCTION with scenario_not
+# Description: jaywalking pedestrian
+peds         = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_on_road = on_road(peds, log_dir)
+referred     = scenario_not(at_pedestrian_crossing)(peds_on_road, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: multi-step relational query - object behind another object that is being crossed
+# Description: the vehicle behind another vehicle being crossed by a jaywalking pedestrian
+peds              = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_on_road      = on_road(peds, log_dir)
+jaywalking_peds   = scenario_not(at_pedestrian_crossing)(peds_on_road, log_dir)
+
+vehicles          = get_objects_of_category(log_dir, category='VEHICLE')
+moving_in_da      = scenario_and([in_drivable_area(vehicles, log_dir), active(vehicles, log_dir)])
+crossed_vehicles  = being_crossed_by(moving_in_da, jaywalking_peds, log_dir)
+# 25m ~ typical "following" gap behind the crossed vehicle
+referred          = get_objects_in_relative_direction(crossed_vehicles, moving_in_da, log_dir,
+                                                       direction='backward', max_number=1, within_distance=25)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: peds sandwiched between two vehicles - intersect "in front" and "behind" sets
+# Description: pedestrian walking between two stopped vehicles
+vehicles            = get_objects_of_category(log_dir, category='VEHICLE')
+peds                = get_objects_of_category(log_dir, category='PEDESTRIAN')
+stationary_vehicles = stationary(vehicles, log_dir)
+peds_behind         = get_objects_in_relative_direction(stationary_vehicles, peds,         log_dir,
+                                                         direction='backward', within_distance=5, lateral_thresh=.5)
+peds_in_front       = get_objects_in_relative_direction(stationary_vehicles, peds_behind,  log_dir,
+                                                         direction='forward',  within_distance=5, lateral_thresh=.5)
+referred            = scenario_and([peds_in_front, peds_behind])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: same-lane relation between two sets of the same category
+# Description: vehicle with another vehicle in their lane
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = in_same_lane(vehicles, vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: passed/overtaken on either side -> union of left/right being_overtaken
+# being_overtaken returns the TRACK (vehicle), subject is already track -> no
+# reverse_relationship. No stationary filter: GT also labels stopped vehicles.
+# Description: vehicles being passed by a motorcycle on either side
+vehicles     = get_objects_of_category(log_dir, category='VEHICLE')
+motorcycles  = get_objects_of_category(log_dir, category='MOTORCYCLE')
+passed_left  = being_overtaken(vehicles, motorcycles, log_dir, direction='left')
+passed_right = being_overtaken(vehicles, motorcycles, log_dir, direction='right')
+referred     = scenario_or([passed_left, passed_right])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: complex multi-step query with same-lane and bidirectional neighbors
+# Lane splitting is moving between two cars that are in adjacent lanes, usually during slow traffic
+# Description: lane splitting motorcycle
+motorcycles        = get_objects_of_category(log_dir, category='MOTORCYCLE')
+moving_motorcycles = active(motorcycles, log_dir)
+vehicles           = get_objects_of_category(log_dir, category='VEHICLE')
+veh_left           = get_objects_in_relative_direction(moving_motorcycles, vehicles, log_dir,
+                                                        direction='left',  min_number=1, max_number=1,
+                                                        within_distance=4, lateral_thresh=2)
+veh_right          = get_objects_in_relative_direction(moving_motorcycles, vehicles, log_dir,
+                                                        direction='right', min_number=1, max_number=1,
+                                                        within_distance=4, lateral_thresh=2)
+moto_lane_left     = in_same_lane(moving_motorcycles, veh_right, log_dir)
+moto_lane_right    = in_same_lane(moving_motorcycles, veh_left,  log_dir)
+referred           = scenario_or([
+    has_objects_in_relative_direction(moto_lane_left,  veh_left,  log_dir, direction='left',  within_distance=4, lateral_thresh=2),
+    has_objects_in_relative_direction(moto_lane_right, veh_right, log_dir, direction='right', within_distance=4, lateral_thresh=2),
+])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: log-level weather filter
+# Description: ego vehicle driving during rain
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = is_weather(ego, log_dir, condition='rain')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: log-level time-of-day filter
+# Description: ego vehicle driving at dusk or dawn
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = is_time_of_day(ego, log_dir, period='dusk_or_dawn')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: infrastructure proximity + standing posture
+# Description: people standing at a bus stop
+peds            = get_objects_of_category(log_dir, category='PEDESTRIAN')
+near_bus_stop   = near_infrastructure(peds, log_dir, infrastructure='bus_stop')
+standing        = stationary(peds, log_dir)
+referred        = scenario_and([near_bus_stop, standing])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: parking-lot motion - combine near_parking with not-on-road and
+# velocity constraints, all applied to near_parking (NOT to the raw vehicle set).
+# Description: vehicle traveling through a parking lot
+# # BAD: collapsing to a single active filter on near_parking drops the
+# # explicit not-on-road constraint, so the referred set leaks onto the road.
+vehicles     = get_objects_of_category(log_dir, category='VEHICLE')
+near_parking = near_infrastructure(vehicles, log_dir, infrastructure='parking_lot')
+not_on_road  = scenario_not(on_road)(near_parking, log_dir)
+moving       = has_velocity(near_parking, log_dir, min_velocity=0.5)
+referred     = scenario_and([near_parking, not_on_road, moving])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: color via VLM. Put the color in the get_visual_actor description.
+# Description: red vehicle
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = get_visual_actor(vehicles, log_dir, 'a red vehicle')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: longitudinal acceleration. accelerating() returns an empty dict for
+# vehicles classified as stationary overall (axis-aligned position range < 3m),
+# so this only catches vehicles that actually move during the log.
+# Description: vehicle accelerating
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = accelerating(vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: instantaneous slow motion (NOT the same as stationary)
+# Description: vehicle stopped at an intersection
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+slow     = has_velocity(vehicles, log_dir, min_velocity=0.0, max_velocity=0.5)
+referred = on_intersection(slow, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: vehicle stopped at a stop sign
+# Description: vehicle waiting at a stop sign
+vehicles  = get_objects_of_category(log_dir, category='VEHICLE')
+near_stop = at_stop_sign(vehicles, log_dir)
+referred  = has_velocity(near_stop, log_dir, min_velocity=0.0, max_velocity=0.5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: motion-based heading (heading_toward), not orientation (facing_toward)
+# Description: vehicle driving toward the ego vehicle
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = heading_toward(vehicles, ego, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: following - same lane + same direction + sustained
+# Description: vehicle following another vehicle
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = following(vehicles, vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: SPECIAL-CASE prompt (do NOT generalize "that is"). REFERRED = the
+# EGO vehicle, treated as the one being overtaken on the right. The "following"
+# clause is scene context, NOT a separate filter.
+# Description: ego vehicle following vehicle being overtaken on right
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = being_overtaken(ego, vehicles, log_dir, direction='right')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: SPECIAL-CASE (this exact wording only). "that is" -> ego-follow IS a
+# hard filter; use has_objects_in_relative_direction (NOT following(): too
+# strict for this GT). REFERRED = vehicle. Contrast with the previous example.
+# Description: ego vehicle following vehicle that is being overtaken on the right
+ego             = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+followed_by_ego = has_objects_in_relative_direction(vehicles, ego, log_dir,
+                                                     direction='backward', within_distance=25, lateral_thresh=5)
+overtaken_right = being_overtaken(vehicles, vehicles, log_dir, direction='right')
+referred        = scenario_and([followed_by_ego, overtaken_right])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: A cuts into B's forward zone -> cut_in_front_of(A, B). Returns A.
+# Use for "X cutting in front of Y" / "X cuts off Y".
+# Description: vehicle cutting in front of ego vehicle
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = cut_in_front_of(vehicles, ego, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: cut-in followed by turning -> chain with turning() via scenario_and.
+# Description: vehicle cutting across lanes in front of ego vehicle to make a turn
+vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
+ego         = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+cutting_in  = cut_in_front_of(vehicles, ego, log_dir)
+turning_v   = turning(vehicles, log_dir)
+referred    = scenario_and([cutting_in, turning_v])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: cyclist cuts across vehicle traffic toward sidewalk.
+# Subject is BICYCLIST; related is moving VEHICLE.
+# Description: Bicyclist cutting across road to enter a sidewalk
+bicyclists      = get_objects_of_category(log_dir, category='BICYCLIST')
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+moving_vehicles = scenario_not(stationary)(vehicles, log_dir)
+referred        = cut_in_front_of(bicyclists, moving_vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: bus merges in front of ego -> cut_in_front_of with BUS subject.
+# Signaling is implicit in the cut-in (we don't have a signal primitive).
+# Description: bus signaling to merge in front of the ego vehicle
+buses    = get_objects_of_category(log_dir, category='BUS')
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = cut_in_front_of(buses, ego, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: vehicle cuts in front of ego AND lands between two other vehicles.
+# Compose cut_in_front_of (subject = cutter) with between_two_objects on the SAME cutter.
+# Description: vehicle cutting across lanes in front of ego vehicle and merging between two other vehicles
+vehicles   = get_objects_of_category(log_dir, category='VEHICLE')
+ego        = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+cutting_in = cut_in_front_of(vehicles, ego, log_dir)
+referred   = between_two_objects(cutting_in, vehicles, vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN (DO NOT DO THIS) - over-engineered "vehicle in front of ego"
+# Why bad: adds heading_in_relative_direction_to + scenario_or fallback that
+# narrow the timestamp window without semantic justification. Each extra
+# scenario_and reduces the timestamp intersection.
+# # Description: vehicle in front of ego vehicle  (BAD)
+# ego         = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
+# moving      = scenario_not(stationary)(vehicles, log_dir)
+# in_front    = get_objects_in_relative_direction(ego, moving, log_dir, direction='forward', within_distance=40)
+# same_dir    = heading_in_relative_direction_to(in_front, ego, log_dir, direction='same')
+# extra_check = being_crossed_by(ego, in_front, log_dir, direction='forward', forward_thresh=10, lateral_thresh=5)
+# referred    = scenario_and([in_front, same_dir, extra_check])  # over-narrow, no rationale
+# output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: PREFERRED - minimal version of the above
+# Description: vehicle in front of ego vehicle
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+# lateral_thresh=3 enforces "directly in front" rather than "anywhere ahead"
+referred = get_objects_in_relative_direction(ego, vehicles, log_dir,
+                                              direction='forward', within_distance=40, lateral_thresh=3)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "ego approaching X in same lane" - subject is ego, so use
+# has_objects_in_relative_direction (track-keyed, ego-keyed). lateral_thresh=3
+# enforces "same lane" geometrically. Do NOT chain heading_toward with
+# get_objects_in_relative_direction(track, related): the latter returns
+# RELATED-keyed (cyclist-keyed) output, which mismatches an ego-subject prompt.
+# Description: ego vehicle approaching cyclist in same lane
+ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+cyclists = get_objects_of_category(log_dir, category='BICYCLIST')
+referred = has_objects_in_relative_direction(ego, cyclists, log_dir,
+                                              direction='forward', lateral_thresh=3, within_distance=30)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "approaching stopped X" (persistent halt) — has_objects_in_relative_direction
+# Per APPROACHING rule: when the target is stationary, use
+# has_objects_in_relative_direction(forward) NOT heading_toward (which needs
+# target motion). A halted delivery truck is parked-like in the road, so use
+# stationary (robust to tracker bbox jitter). "delivery truck" ->
+# scenario_or([TRUCK, BOX_TRUCK]) per categories cluster mapping
+# (delivery vehicles labeled as either in AV2).
+# Description: ego vehicle approaching stopped delivery truck
+ego              = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+trucks           = get_objects_of_category(log_dir, category='TRUCK')
+box_trucks       = get_objects_of_category(log_dir, category='BOX_TRUCK')
+delivery_trucks  = scenario_or([trucks, box_trucks])
+halted_trucks    = stationary(delivery_trucks, log_dir)
+referred         = has_objects_in_relative_direction(ego, halted_trucks, log_dir,
+                                                      direction='forward',
+                                                      within_distance=30, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "multiple X in front of ego" - X is the subject (X-keyed output)
+# Use get_objects_in_relative_direction (returns related candidates keyed).
+# Description: multiple motorcycles ahead of the ego vehicle
+ego         = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+motorcycles = get_objects_of_category(log_dir, category='MOTORCYCLE')
+referred    = get_objects_in_relative_direction(ego, motorcycles, log_dir,
+                                                 direction='forward', min_number=2,
+                                                 within_distance=50, lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN (DO NOT DO THIS) - subject keying mismatch for "multiple X" prompt
+# Why bad: "multiple motorcycles ahead of ego" -> motorcycle is the SUBJECT,
+# but has_objects_in_relative_direction returns ego-keyed output (track-keyed),
+# causing the keying to mismatch GT (which expects motorcycle-keyed).
+# # Description: multiple motorcycles ahead of the ego vehicle  (BAD)
+# ego         = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# motorcycles = get_objects_of_category(log_dir, category='MOTORCYCLE')
+# referred    = has_objects_in_relative_direction(ego, motorcycles, log_dir,
+#                                                  direction='forward', min_number=2, within_distance=50)
+# output_scenario(referred, description, log_dir, output_dir)  # ego-keyed, mismatch
+#
+# Also BAD for the same prompt: group_of alone drops the "ahead of ego" direction.
+#   referred = group_of(motorcycles, motorcycles, log_dir, min_objects=2)
+# Correct above uses get_objects_in_relative_direction(ego, motorcycles, ...) which
+# is X-keyed and preserves direction.
+```
+```python
+# Pattern: "wide turn" - do NOT add changing_lanes for the wide/over-lane part.
+# "wide turn over lane" describes the arc of a large vehicle sweeping
+# across an adjacent lane during a normal turn, not a lane change; keep other
+# explicit constraints from the prompt, such as "with trailer."
+# Unqualified "truck" -> scenario_or over TRUCK, BOX_TRUCK, TRUCK_CAB per
+# categories cluster mapping (real-world trucks are labeled across all three).
+# Description: truck with trailer making a wide right turn over lane
+trucks_main         = get_objects_of_category(log_dir, category='TRUCK')
+box_trucks          = get_objects_of_category(log_dir, category='BOX_TRUCK')
+truck_cabs          = get_objects_of_category(log_dir, category='TRUCK_CAB')
+trucks              = scenario_or([trucks_main, box_trucks, truck_cabs])
+trailers            = get_objects_of_category(log_dir, category='VEHICULAR_TRAILER')
+trucks_with_trailer = near_objects(trucks, trailers, log_dir, distance_thresh=5, min_objects=1)
+referred            = turning(trucks_with_trailer, log_dir, direction='right')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: subject between two anchors of the SAME category (symmetric)
+# Use between_two_objects with the same anchor set passed twice.
+# axis-free — works for any orientation in world frame.
+# Description: motorcycle between two vehicles
+motorcycles = get_objects_of_category(log_dir, category='MOTORCYCLE')
+vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
+referred    = between_two_objects(motorcycles, vehicles, vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: between two STOPPED anchors of same category — filter anchors first
+# Description: motorcycle between stopped vehicles
+motorcycles = get_objects_of_category(log_dir, category='MOTORCYCLE')
+vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
+stopped_v   = stationary(vehicles, log_dir)
+referred    = between_two_objects(motorcycles, stopped_v, stopped_v, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: subject is a MOVING subject; anchors are static infra
+# Description: vehicle maneuvering between construction barriers
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+moving_vehicles = scenario_not(stationary)(vehicles, log_dir)
+cones           = get_objects_of_category(log_dir, category='CONSTRUCTION_CONE')
+barrels         = get_objects_of_category(log_dir, category='CONSTRUCTION_BARREL')
+barriers        = scenario_or([cones, barrels])
+referred        = between_two_objects(moving_vehicles, barriers, barriers, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: pedestrian between two moving anchors — yaw noise tolerated
+# Description: pedestrian between moving vehicles on both sides
+peds            = get_objects_of_category(log_dir, category='PEDESTRIAN')
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+moving_vehicles = scenario_not(stationary)(vehicles, log_dir)
+referred        = between_two_objects(peds, moving_vehicles, moving_vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: subject pre-filtered by at_pedestrian_crossing, then between bollards
+# Description: pedestrian crossing between bollards
+peds             = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_at_crossing = at_pedestrian_crossing(peds, log_dir)
+bollards         = get_objects_of_category(log_dir, category='BOLLARD')
+referred         = between_two_objects(peds_at_crossing, bollards, bollards, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: between (geometric) AND directional (approaching) — scenario_and combine
+# Description: pedestrian walking between construction barriers with approaching vehicle
+peds         = get_objects_of_category(log_dir, category='PEDESTRIAN')
+walking_peds = scenario_not(stationary)(peds, log_dir)
+cones        = get_objects_of_category(log_dir, category='CONSTRUCTION_CONE')
+barrels      = get_objects_of_category(log_dir, category='CONSTRUCTION_BARREL')
+barriers     = scenario_or([cones, barrels])
+peds_between = between_two_objects(walking_peds, barriers, barriers, log_dir)
+vehicles     = get_objects_of_category(log_dir, category='VEHICLE')
+# reverse_relationship — heading_toward keys vehicles by default; we want peds-keyed.
+peds_with_approach = reverse_relationship(heading_toward)(vehicles, walking_peds, log_dir, max_distance=30)
+referred     = scenario_and([peds_between, peds_with_approach])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ego changing lanes BETWEEN two other regular vehicles. Apply the
+# action atom (changing_lanes) first, then between_two_objects on the
+# action-filtered subject. Do NOT decompose "between two" into a left+right
+# has_objects_in_relative_direction AND chain — that under-recalls.
+# Description: ego vehicle merging between two regular vehicles
+# # BAD: decomposing "between two Y" into left+right has_objects_in_relative_direction
+# # combined with scenario_and under-recalls the timestamp window vs the
+# # native between_two_objects primitive.
+ego                = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+ego_changing_lanes = changing_lanes(ego, log_dir)
+regs               = get_objects_of_category(log_dir, category='REGULAR_VEHICLE')
+referred           = between_two_objects(ego_changing_lanes, regs, regs, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: lane-changing vehicle in front of ego, between two other vehicles
+# Description: vehicle cutting across lanes in front of ego vehicle and merging between two other vehicles
+vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+lane_changing   = changing_lanes(vehicles, log_dir)
+ego             = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+in_front_of_ego = get_objects_in_relative_direction(ego, lane_changing, log_dir,
+                                                     direction='forward', within_distance=50, lateral_thresh=5)
+referred        = between_two_objects(in_front_of_ego, vehicles, vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: between ASYMMETRIC anchors — one anchor is turning, the other is stopped
+# Pass DIFFERENT scenario_dicts to anchors_a / anchors_b.
+# pair_must_differ=True automatically prevents trivial (a==b) when categories overlap.
+# Description: person crosses crosswalk between a turning and stopped vehicle
+peds             = get_objects_of_category(log_dir, category='PEDESTRIAN')
+peds_at_crossing = at_pedestrian_crossing(peds, log_dir)
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+turning_v        = turning(vehicles, log_dir)
+stopped_v        = stationary(vehicles, log_dir)
+referred         = between_two_objects(peds_at_crossing, turning_v, stopped_v, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "between N and M meters" — DISTANCE RANGE, NOT a spatial sandwich.
+# DO NOT use between_two_objects() for distance ranges.
+# Use max_distance + scenario_not for the range [N, M].
+# Description: stopped vehicle facing a turning vehicle between 5-20 meters away
+vehicles         = get_objects_of_category(log_dir, category='VEHICLE')
+stopped_v        = stationary(vehicles, log_dir)
+turning_v        = turning(vehicles, log_dir)
+facing_within_20 = facing_toward(stopped_v, turning_v, log_dir, within_angle=22.5, max_distance=20)
+facing_within_5  = scenario_not(facing_toward)(stopped_v, turning_v, log_dir, within_angle=22.5, max_distance=5)
+# (facing within 20m) AND (NOT facing within 5m)  =  facing in 5-20m
+referred         = scenario_and([facing_within_20, facing_within_5])
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: NEW ATOM `on_median` — vehicle/pedestrian physically on road median.
+# Use the dedicated atom (not near_infrastructure with 'median', which is NOT
+# a valid infrastructure label).
+# Description: vehicle sitting on the median
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+on_median_vehicles = on_median(vehicles, log_dir)
+referred = stationary(on_median_vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: NEW ATOM `on_median` for pedestrian subject (val-validated, HOTA 0.93).
+# Description: pedestrian on the median
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+referred = on_median(peds, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: NEW ATOM `on_road_with_n_lanes` for one-way road / N-lane structure.
+# Description: vehicle passing ego vehicle on one way road
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+moving_vehicles = active(vehicles, log_dir)
+on_one_way = on_road_with_n_lanes(moving_vehicles, log_dir, one_way=True)
+referred = near_objects(on_one_way, ego, log_dir, distance_thresh=30)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ATOM `get_visual_actor` (L2) — VLM identifies an actor by what it IS
+# WHEN the subtype has NO dedicated AV2 category. Use after coarse category.
+# Description: ego vehicle approaching police car with its police lights on
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+police_cars = get_visual_actor(vehicles, log_dir, 'a police car')
+referred = has_objects_in_relative_direction(ego, police_cars, log_dir, direction='forward', within_distance=30)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ATOM `get_visual_behavior` (L3) — VLM filters by a VISIBLE behavior /
+# appearance confirmable from ONE crop. Use after gathering the actor set.
+# Scope: SINGLE-person, single-crop visible state only. Multi-person /
+# multi-frame events use pattern-specific near_objects fallbacks: getting off
+# bus uses near_objects(BUS,5) + active; exiting both sides uses
+# near_objects(VEHICLE,3) WITHOUT active — see shared_guide 6a/6b.
+# Description: a single person mid-exit from a vehicle door
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+exiting = get_visual_behavior(peds, log_dir, 'a single person mid-exit from a vehicle door')
+output_scenario(exiting, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN — DO NOT use nth_object_in_direction for "two cars ahead"
+# Why bad: val zero-HOTA — output keying mismatches GT track-keying. Use chained
+# get_objects_in_relative_direction twice instead.
+# # Description: vehicle two cars ahead is braking (BAD)
+# vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+# ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# two_ahead = nth_object_in_direction(vehicles, log_dir, direction='forward', n=2, view_point=ego)
+# referred = braking(two_ahead, log_dir)
+# output_scenario(referred, description, log_dir, output_dir)
+# # CORRECT (chained, val-positive):
+# one_ahead = get_objects_in_relative_direction(ego, vehicles, log_dir, direction='forward',
+#                                                min_number=1, max_number=1, within_distance=50, lateral_thresh=3)
+# two_ahead = get_objects_in_relative_direction(one_ahead, vehicles, log_dir, direction='forward',
+#                                                min_number=1, max_number=1, within_distance=50, lateral_thresh=3)
+# referred = braking(two_ahead, log_dir)
+# output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: ANTI-PATTERN — DO NOT use waiting_to_turn for generic "waiting for X".
+# Why bad: waiting_to_turn requires the subject be in a turn lane at low speed
+# AND about to turn. Generic "vehicle waiting for stopped X" is just
+# has_velocity(0,0.5) + spatial anchor.
+# # Description: vehicle waiting for a stopped school bus (BAD)
+# vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+# referred = waiting_to_turn(vehicles, log_dir)  # wrong — no turn implied
+# # CORRECT:
+# vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+# slow_vehicles = has_velocity(vehicles, log_dir, min_velocity=0.0, max_velocity=0.5)
+# school_buses = get_objects_of_category(log_dir, category='SCHOOL_BUS')
+# stopped_buses = stationary(school_buses, log_dir)
+# referred = has_objects_in_relative_direction(slow_vehicles, stopped_buses, log_dir, direction='forward', within_distance=30)
+# output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: scene/camera-level artifact (lens dirt, sensor degradation, image
+# quality). actor-crop VLM cannot see scene/camera state. Use ego fallback.
+# Description: ego vehicle camera experiencing non-environmental degradation
+# # BAD: scene-level VLM call returns no useful filter
+# # ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# # referred = get_visual_behavior(ego, log_dir, 'camera lens dirt or sensor artifact')
+# # output_scenario(referred, description, log_dir, output_dir)
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = ego
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: well-tracked rare subtype "autonomous vehicle". Use a narrow gather
+# (REGULAR_VEHICLE) + get_visual_actor. Broad gather with scenario_or over
+# VEHICLE and WHEELED_DEVICE makes the VLM filter noisy. Do not generalize
+# this to all rare subtypes — police/ambulance/forklift/child can benefit
+# from broad VLM.
+# Description: another autonomous vehicle
+# # BAD: broad union over VEHICLE + WHEELED_DEVICE then get_visual_actor
+# # makes the VLM filter noisy (miskeys actors across categories)
+vehicles = get_objects_of_category(log_dir, category='REGULAR_VEHICLE')
+referred = get_visual_actor(vehicles, log_dir, 'an autonomous vehicle')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X over N meters away" — referred MUST be X (peds), NOT ego.
+# Use scenario_not(near_objects)(X, ego, distance_thresh=N). Do NOT use
+# get_objects_in_relative_direction or has_objects_in_relative_direction
+# with ego as subject — those return ego-keyed results and reverse subject.
+# Description: pedestrians over 30 meters away
+# # BAD: an ego-keyed forward/backward relation puts ego in the subject slot
+# # and the referred set ends up being ego instead of the pedestrians.
+# # FILTER-ANCHOR: near_objects(peds, ego, log_dir, distance_thresh=30)
+# # is intentionally wrapped by scenario_not below. The wrapped form
+# # scenario_not(near_objects)(peds, ego, ...) makes the call-extraction
+# # regex see only scenario_not(, so this anchor comment lets the example
+# # filter pick this block up when the Selector picks near_objects.
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+referred = scenario_not(near_objects)(peds, ego, log_dir, distance_thresh=30)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X N cars ahead of Y" — chain vehicles-vehicles-Y with lateral_thresh.
+# Do NOT use nth_object_in_direction (output keying mismatches GT).
+# Do NOT chain ego-first (reverses subject keying).
+# Description: ego vehicle two cars ahead of another vehicle
+# # BAD: ego-first chain reverses subject keying
+# # vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+# # ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+# # one_ahead = get_objects_in_relative_direction(ego, vehicles, log_dir, direction='forward', min_number=1, max_number=1)
+# # referred = get_objects_in_relative_direction(one_ahead, ego, log_dir, direction='forward', min_number=1, max_number=1)
+# # output_scenario(referred, description, log_dir, output_dir)
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+one_ahead = get_objects_in_relative_direction(vehicles, vehicles, log_dir,
+                                               direction='forward', min_number=1, max_number=1,
+                                               within_distance=50, lateral_thresh=3)
+referred = get_objects_in_relative_direction(one_ahead, ego, log_dir,
+                                              direction='forward', min_number=1, max_number=1,
+                                              within_distance=50, lateral_thresh=3)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X crossing in front of Y" (subject = X). X must be ON THE ROAD
+# (sidewalks/yards are false positives). Do NOT union DOG with ANIMAL — keep
+# DOG narrow for this prompt; ANIMAL union is for "animal crossing" prompts.
+# Description: dog crossing in front of vehicle
+# # BAD: combining DOG and ANIMAL via scenario_or AND dropping on_road adds
+# # yard/sidewalk false positives — the referred dogs are no longer constrained
+# # to the road surface.
+dogs = get_objects_of_category(log_dir, category='DOG')
+dogs_on_road = on_road(dogs, log_dir)
+active_dogs = active(dogs_on_road, log_dir)
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = get_objects_in_relative_direction(vehicles, active_dogs, log_dir,
+                                              direction='forward', within_distance=20)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "vehicles on all sides" / "all sides of intersection" / "four-way stop".
+# Use a simple chain (stopped vehicles + on_intersection). Do NOT chain a
+# 4-direction has_objects_in_relative_direction AND (forward + backward + left
+# + right) — that empties the filter.
+# Apply ONLY when the prompt literally contains "all sides", "all around",
+# "four-way stop". on_intersection is a common auto-helper so this example may
+# appear in Coder context for unrelated intersection prompts — Coder must check
+# trigger phrase before adopting this short chain.
+# Description: vehicles on all sides of a four-way stop
+# # BAD: chaining four has_objects_in_relative_direction filters (forward,
+# # backward, left, right) on the same on_intersection set ANDs together to
+# # an empty set in practice.
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+stopped_vehicles = has_velocity(vehicles, log_dir, min_velocity=0.0, max_velocity=0.5)
+referred = on_intersection(stopped_vehicles, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X routed onto opposite side of road" — the related set in
+# on_relative_side_of_road must be OTHER actors (vehicles), NOT X itself.
+# Comparing a set to itself is meaningless.
+# BAD: passing ego as both subject (after near_construction) AND as related —
+# this gives an ego-vs-ego comparison and empties the result.
+# Description: ego vehicle routed onto opposite side of the road due to construction
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+ego_near_construction = near_construction_objects(ego, log_dir)
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = on_relative_side_of_road(ego_near_construction, vehicles, log_dir, side='opposite')
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "vehicle stopped in front of stop bar" — 'stop bar' = stop line at
+# intersection entry. Use near_intersection + velocity, NOT at_stop_sign
+# (which is a lane-membership atom, not a proximity atom). Do NOT apply this
+# pattern to 'four-way stop' or 'at stop sign' (those use on_intersection +
+# has_velocity, or at_stop_sign, respectively).
+# Description: vehicle stopped in front of stop bar
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+stopped = has_velocity(vehicles, log_dir, min_velocity=0.0, max_velocity=0.5)
+referred = near_intersection(stopped, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "X with N Y to its <side>" — side-object adjacency. min_number=N
+# (or 2), within_distance=15, lateral_thresh=5 keeps Y inside X's side band.
+# BAD: dropping lateral_thresh and using within=10 over-recalls to anything
+# inside the distance arc but outside the side band, AND under-recalls when
+# objects sit beyond 10m.
+# Description: box truck with multiple construction cones to its right
+box_trucks = get_objects_of_category(log_dir, category='BOX_TRUCK')
+cones = get_objects_of_category(log_dir, category='CONSTRUCTION_CONE')
+referred = has_objects_in_relative_direction(box_trucks, cones, log_dir,
+                                              direction='right',
+                                              min_number=2,
+                                              within_distance=15,
+                                              lateral_thresh=5)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "pedestrians getting off bus" — multi-person multi-frame action.
+# Use active peds near the bus track (NOT VLM, NOT stationary). Apply
+# near_objects FIRST, then active.
+# BAD: using stationary peds — this passive interpretation selects standing
+# pedestrians instead of people moving away from the bus.
+# BAD: using get_visual_behavior — a multi-frame action that VLM on a single
+# crop cannot reliably capture.
+# Bus category: literal 'bus' -> BUS only (no SCHOOL_BUS/ARTICULATED_BUS
+# union). 'school bus' explicit in prompt -> SCHOOL_BUS instead.
+# Description: pedestrians getting off bus
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+buses = get_objects_of_category(log_dir, category='BUS')
+peds_near_bus = near_objects(peds, buses, log_dir, distance_thresh=5, min_objects=1)
+referred = active(peds_near_bus, log_dir)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "N <X> left/right of the ego vehicle" — counted side relation,
+# referred is X (NOT ego). Use get_objects_in_relative_direction (returns
+# related set), NOT has_objects_in_relative_direction (returns subject set).
+# within_distance=50 is the sweet spot for adjacent-lane presence; within<30
+# under-recalls counted side relations.
+# Description: two delivery trucks left of the ego vehicle
+ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+trucks = scenario_or([
+    get_objects_of_category(log_dir, category='TRUCK'),
+    get_objects_of_category(log_dir, category='BOX_TRUCK'),
+])
+referred = get_objects_in_relative_direction(ego, trucks, log_dir,
+                                              direction='left',
+                                              min_number=2,
+                                              within_distance=50)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "pedestrian near BOLLARD" — BOLLARD is a tracked AV2 category,
+# NOT a generic construction object. Use near_objects directly.
+# BAD: using near_construction_objects — its scope is CONSTRUCTION_BARREL /
+# CONSTRUCTION_CONE / SIGN only; BOLLARD is NOT included and the filter
+# returns an empty result.
+# Description: pedestrian near bollard
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+bollards = get_objects_of_category(log_dir, category='BOLLARD')
+referred = near_objects(peds, bollards, log_dir, distance_thresh=5, min_objects=1)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "pedestrian near STOP_SIGN" — STOP_SIGN is a tracked AV2 category.
+# Use near_objects (proximity to the physical sign track), NOT at_stop_sign
+# (which checks lane-membership of the lane controlled by the sign, not
+# pedestrian-to-sign distance).
+# Description: pedestrian near stop sign
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+stop_signs = get_objects_of_category(log_dir, category='STOP_SIGN')
+referred = near_objects(peds, stop_signs, log_dir, distance_thresh=5, min_objects=1)
+output_scenario(referred, description, log_dir, output_dir)
+```
+```python
+# Pattern: "people exiting a vehicle from both sides at once" — multi-person
+# multi-frame event. Use vehicle proximity only. distance=3 (NOT 5), VEHICLE
+# (NOT BUS) — keep separate from the getting-off-bus pattern above.
+# BAD: using get_visual_behavior on a single crop — the VLM call REPLACES
+# vehicle proximity entirely and the multi-frame action is not visible in
+# one frame.
+# BAD: adding has_velocity or on_intersection — over-restricts to an empty
+# intersection of constraints.
+# Description: people exiting a vehicle from both sides at once
+peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+referred = near_objects(peds, vehicles, log_dir, distance_thresh=3, min_objects=1)
+output_scenario(referred, description, log_dir, output_dir)
+```

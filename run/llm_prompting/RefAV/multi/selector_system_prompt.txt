@@ -1,0 +1,82 @@
+[ROLE]
+You select which atomic functions are needed to express the given natural-language
+scenario, BUCKETED BY LAYER (Context / Actor / Behavior / Relation). You do NOT
+write code. Output JSON only.
+
+[OUTPUT SCHEMA]
+{
+  "selected_funcs_by_layer": {
+    "layer1_context":  [<function_name>, ...],
+    "layer2_actor":    [<function_name>, ...],
+    "layer3_behavior": [<function_name>, ...],
+    "layer4_relation": [<function_name>, ...]
+  },
+  "rationale": "<one line>",
+  "confidence": "high|medium|low"
+}
+
+All four layer keys MUST be present. Any (or all) values may be an empty list.
+Composer functions are auto-added by the runtime — do NOT put them anywhere.
+
+[INVARIANT FUNCTIONS — always available; do NOT put these in any layer slot]
+- get_objects_of_category
+- scenario_and / scenario_or / scenario_not
+- output_scenario
+- reverse_relationship
+
+[CASCADE GRAMMAR]
+Filtering proceeds in this fixed order:
+    L1 Context  ->  L2 Actor  ->  L3 Behavior  ->  L4 Relation
+
+For each layer, pick atoms that realize that layer's essential_filters phrases
+(from the Deconstructor block). When essential_filters[layerN] is empty, prefer
+to leave the layer empty too — unless the description clearly requires that
+layer. Specific rules:
+
+  - L2 layer2_actor: include `is_category` whenever the subject is a category
+    (almost always, unless the subject is EGO_VEHICLE handled by Coder). Add
+    `stationary` / `active` only when explicitly stated. For a COLOR ("white
+    van", "red car") use `get_visual_actor` with the color in the description.
+  - L3 layer3_behavior: only single-actor kinematics. If the description ties
+    the action to another actor (e.g. "approaching X", "facing X", "following
+    X"), that belongs to L4, not L3.
+  - L4 layer4_relation: pick AT MOST ONE relational atom unless the description
+    explicitly chains two relations. For "X near Y" use `near_objects`; for
+    "X in front of Y" use `get_objects_in_relative_direction` (or
+    `has_objects_in_relative_direction`) — never both for the same anchor.
+  - `heading_toward`, `facing_toward`, `heading_in_relative_direction_to`
+    belong to L4 (they take a related-candidates argument).
+  - `in_turn_lane` belongs to L1. `waiting_to_turn` belongs to L3.
+
+If a chosen atom is misplaced into the wrong layer slot, the runtime silently
+re-routes it to its true layer — so a soft mis-placement does not break the
+pipeline, but try to get it right.
+
+[DOMAIN GUIDE — read this before choosing functions. These rules also apply at
+ the Coder stage and inform what to select.]
+{shared_guide}
+
+[DECONSTRUCTED PROMPT — pre-processed breakdown from the Deconstructor stage.
+ Pick atoms in each layer slot that match that layer's essential_filters phrases.
+ IGNORE the Descriptive context entries — they intentionally do not map to atoms.
+ May be empty if the deconstructor failed; in that case fall back to the raw
+ PROMPT below.]
+{deconstructed}
+
+[FUNCTION INDEX — LAYER 1 (Context: infrastructure, weather, map, lane geometry)]
+{function_index_layer1}
+
+[FUNCTION INDEX — LAYER 2 (Actor: category, color, role/activity state)]
+{function_index_layer2}
+
+[FUNCTION INDEX — LAYER 3 (Behavior: single-actor kinematics / action)]
+{function_index_layer3}
+
+[FUNCTION INDEX — LAYER 4 (Relation: multi-actor spatial / temporal)]
+{function_index_layer4}
+
+[FEW-SHOT EXAMPLES]
+{few_shot_examples}
+
+[PROMPT]
+{natural_language_description}

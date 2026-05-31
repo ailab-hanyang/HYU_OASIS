@@ -1,0 +1,10 @@
+- turning                                : Returns objects that are turning in the given direction.
+- changing_lanes                         : Identifies lane change events for tracked objects in a scenario.
+- has_lateral_acceleration               : Returns objects with a lateral acceleration between the minimum and maximum thresholds.
+- accelerating                           : Identifies objects in track_candidates that have a forward acceleration above a threshold.
+- has_velocity                           : Identifies objects with a velocity between the given maximum and minimum velocities in m/s.
+- waiting_to_turn                        : Identifies tracks that are waiting to turn — the front-third reference point of the cuboid is inside an intersection turn lane while the track is moving at low speed.
+- braking                                : Identifies tracks that are braking (forward deceleration ≤ max_accel m/s²).
+- braking_hard                           : Identifies tracks that are braking hard (forward deceleration ≤ max_accel m/s²).
+- reversing                              : Returns objects that are reversing, defined as having negative forward velocity in the object's own body frame (x-axis). Parked objects are excluded.
+- get_visual_behavior                    : Filter tracks by a VISIBLE behavior / appearance / static state from ONE crop (VLM): a person exiting a vehicle, on a ladder, pushing a shopping cart; a car covered by a tarp; a vehicle carrying a bicycle. NOT motion (turning/braking) or tiny cues (turn signal). FILTER-only.

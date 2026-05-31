@@ -1,0 +1,1613 @@
+def has_objects_in_relative_direction(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    direction:Literal["forward", "backward", "left", "right"],
+    min_number:int=1,
+    max_number:int=np.inf,
+    within_distance:float=50,
+    lateral_thresh:float=np.inf) -> dict:
+    """
+    Identifies tracked objects with at least the minimum number of related candidates in the specified direction.
+    If the minimum number is met, will create relationships equal to the max_number of closest objects. 
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        related_candidates: Candidates to check for in direction (scenario dictionary).
+        log_dir: Path to scenario logs.
+        direction: Direction to analyze from the track's point of view ('forward', 'backward', 'left', 'right').
+        min_number: Minimum number of objects to identify in the direction per timestamp. Defaults to 1.
+        max_number: Maximum number of objects to identify in the direction per timestamp. Defaults to infinity.
+        within_distance: Maximum distance for considering an object in the direction. Defaults to infinity.
+        lateral_thresh: Maximum lateral distance the related object can be from the sides of the tracked object. Defaults to infinity.
+    
+    Returns:
+        dict: 
+            A scenario dictionary where keys are track UUIDs and values are dictionaries containing related candidate UUIDs 
+            and lists of timestamps when the condition is met for that relative direction.
+    
+    Example:
+        vehicles_with_peds_in_front = has_objects_in_relative_direction(vehicles, pedestrians, log_dir, direction='forward', min_number=2)
+    """
+
+def get_objects_in_relative_direction(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    direction:Literal["forward", "backward", "left", "right"],
+    min_number:int=0,
+    max_number:int=np.inf,
+    within_distance:float=50,
+    lateral_thresh:float=np.inf)->dict:
+    """
+    Returns a scenario dictionary of the related candidates that are in the relative direction of the track candidates.
+    
+    
+    Args:
+        track_candidates: Tracks  (scenario dictionary).
+        related_candidates: Candidates to check for in direction (scenario dictionary).
+        log_dir: Path to scenario logs.
+        direction: Direction to analyze from the track's point of view ('forward', 'backward', 'left', 'right').
+        min_number: Minimum number of objects to identify in the direction per timestamp. Defaults to 0.
+        max_number: Maximum number of objects to identify in the direction per timestamp. Defaults to infinity.
+        within_distance: Maximum distance for considering an object in the direction. Defaults to infinity.
+        lateral_thresh: Maximum lateral distance the related object can be from the sides of the tracked object. Lateral distance is 
+        distance is the distance from the sides of the object that are parallel to the specified direction. Defaults to infinity.
+    
+    Returns:
+        dict: 
+            A scenario dictionary where keys are track UUIDs and values are dictionaries containing related candidate UUIDs 
+            and lists of timestamps when the condition is met for that relative direction.
+    
+    Example:
+        peds_in_front_of_vehicles = get_objects_in_relative_direction(vehicles, pedestrians, log_dir, direction='forward', min_number=2)
+    """
+
+def get_objects_of_category(log_dir, category)->dict:
+    """
+    Returns all objects from a given category from the log annotations. This method accepts the 
+    super-categories "ANY" and "VEHICLE".
+    
+    Args:
+        log_dir: Path to the directory containing scenario logs and data.
+        category: the category of objects to return
+    
+    Returns: 
+        dict: A scenario dict that where keys are the unique id (uuid) of the object and values 
+        are the list of timestamps the object is in view of the ego-vehicle.
+    
+    Example:
+        trucks = get_objects_of_category(log_dir, category='TRUCK')
+    """
+
+def is_category(track_candidates:dict, log_dir:Path, category:str):
+    """
+    Returns all objects from a given category from track_candidates dict. This method accepts the 
+    super-categories "ANY" and "VEHICLE".
+    
+    Args:
+        track_candidates: The scenario dict containing the objects to filter down
+        log_dir: Path to the directory containing scenario logs and data.
+        category: the category of objects to return
+    
+    Returns: 
+        dict: A scenario dict that where keys are the unique id of the object of the given category and values 
+        are the list of timestamps the object is in view of the ego-vehicle.
+    
+    Example:
+        box_trucks = is_category(vehicles, log_dir, category='BOX_TRUCK')
+    """
+
+def get_visual_actor(track_candidates: dict, log_dir: Path, description: str) -> dict:
+    """
+    Identify an ACTOR by what it visually IS, using a vision-language model (VLM) on each
+    track's best camera crop. Returns the subset of track_candidates whose crop clearly shows
+    the described actor type. FILTER-only: it never adds tracks, so the candidate set must
+    already contain the target -- gather BROADLY first.
+
+    Use this for an actor whose type is a recognizable look that AV2 does NOT label as its own
+    category (so get_objects_of_category alone cannot find it):
+        police car, ambulance, fire truck, tow truck, taxi, food truck, cement mixer,
+        excavator, forklift, utility vehicle (UTV), construction worker, traffic officer, child, ...
+    The description is a visual noun phrase and MAY carry a salient whole-object COLOR
+    ('a white van', 'a red car') -- color is part of the actor's identity here; fold the
+    color into the description (there is no separate color atom).
+
+    Rule of thumb: if the actor's name is one of the 30 AV2 categories, use get_objects_of_category.
+    If it is NOT, gather a BROAD candidate bucket and let the VLM filter -- do NOT narrow to the
+    "obvious" class. The tracker mislabels subtypes under coarse classes (a forklift may land in
+    WHEELED_DEVICE, LARGE_VEHICLE, or even REGULAR_VEHICLE), so any per-subtype class guess risks
+    dropping the target before the VLM ever sees it. Pick the bucket by person-vs-vehicle:
+        vehicle-type actor (police car, ambulance, food truck, forklift, cement mixer, excavator):
+            scenario_or([get_objects_of_category(log_dir, category='VEHICLE'),
+                         get_objects_of_category(log_dir, category='WHEELED_DEVICE')])
+            -- 'VEHICLE' is a superclass; add WHEELED_DEVICE, which it does NOT cover, for
+               forklift / UTV / excavator.
+        person-type actor (construction worker, traffic officer, child):
+            get_objects_of_category(log_dir, category='ANY')
+            -- there is no PERSON superclass, so 'ANY' is the simplest safe gather (the VLM drops
+               non-people).
+        unsure / could be either: get_objects_of_category(log_dir, category='ANY').
+
+    Do NOT use for:
+      - a transient state, action, or added object on the actor (covered by a tarp,
+        carrying a bicycle, on a ladder, exiting a vehicle) -> get_visual_behavior.
+      - anything derivable from boxes or trajectory (position, speed, turning) -> kinematic/relational atomics.
+      - environmental context around the actor (under a canopy, in a school zone) -> context-layer atomics.
+
+    Args:
+        track_candidates: Broad candidate scenario dict to filter (gather a whole bucket first).
+        log_dir: Path to scenario logs.
+        description: Short visual noun phrase for the actor type, e.g. 'a forklift', 'a police car'.
+
+    Returns:
+        dict: Filtered scenario dict (subset of track_candidates), timestamps preserved.
+
+    Example:
+        # police car -- gather the whole vehicle bucket (do not assume REGULAR_VEHICLE)
+        vehicles = scenario_or([get_objects_of_category(log_dir, category='VEHICLE'),
+                                get_objects_of_category(log_dir, category='WHEELED_DEVICE')])
+        police_cars = get_visual_actor(vehicles, log_dir, 'a police car')
+        output_scenario(police_cars, description, log_dir, output_dir)
+
+        # forklift -- the tracker may label it WHEELED_DEVICE / LARGE_VEHICLE / REGULAR_VEHICLE,
+        # so gather the whole vehicle bucket and let the VLM decide
+        candidates = scenario_or([get_objects_of_category(log_dir, category='VEHICLE'),
+                                  get_objects_of_category(log_dir, category='WHEELED_DEVICE')])
+        forklifts = get_visual_actor(candidates, log_dir, 'a forklift')
+        output_scenario(forklifts, description, log_dir, output_dir)
+    """
+
+def get_visual_behavior(track_candidates: dict, log_dir: Path, description: str) -> dict:
+    """
+    Filter tracks by a VISIBLE behavior, appearance, or static state of the actor, using a
+    vision-language model (VLM) on each track's best camera crop. Returns the subset of
+    track_candidates whose crop clearly matches the description. FILTER-only.
+
+    Apply this AFTER you already have the actor set (e.g. pedestrians, vehicles). The evidence
+    must be confirmable from a SINGLE still crop of the actor itself, i.e. (1) visible in the
+    actor's own padded crop and (2) salient -- not a tiny detail or a multi-frame motion.
+
+    DO use for:
+      - a visible action captured in one frame: 'a person exiting a vehicle', 'a person on a ladder',
+        'a person pushing a shopping cart'.
+      - a whole-object appearance / static state: 'a car covered by a tarp', 'a vehicle carrying a bicycle'.
+
+    Do NOT use for:
+      - TEMPORAL / motion behavior: 'turning', 'braking', 'accelerating', 'merging', 'flashing lights'
+        -> motion / relational atomics (a single frame has no motion).
+      - a tiny LOCALIZED cue: 'turned wheels', 'reverse lights on', 'turn signal on'
+        -> geometry / state atomics (the VLM crop misses small details).
+      - the actor's environmental surroundings: 'under a construction canopy', 'in a school zone'
+        -> context-layer atomics (the surroundings fall outside the tight actor crop).
+
+    Args:
+        track_candidates: Actor scenario dict to filter (gather the actor first).
+        log_dir: Path to scenario logs.
+        description: Short phrase for the visible behavior / appearance,
+            e.g. 'a person exiting a vehicle', 'covered by a tarp'.
+
+    Returns:
+        dict: Filtered scenario dict (subset of track_candidates), timestamps preserved.
+
+    Example:
+        peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+        exiting = get_visual_behavior(peds, log_dir, 'a person exiting a vehicle')
+        output_scenario(exiting, description, log_dir, output_dir)
+    """
+
+def is_weather(
+    track_candidates: dict,
+    log_dir: Path,
+    condition: Literal["rain", "snow", "clear", "cloudy"],
+) -> dict:
+    """
+    Returns objects from the log when the scene's weather matches the given condition,
+    as labeled by the Context Layer VLM on the front camera. Weather is evaluated at
+    log level: the whole log either matches or does not, determined by a majority vote
+    across per-timestamp front-camera annotations.
+    
+    Args:
+        track_candidates: The objects you want to filter from (scenario dictionary).
+        log_dir: Path to scenario logs.
+        condition: Weather condition. Must be one of 'rain', 'snow', 'clear', 'cloudy'.
+    
+    Returns:
+        dict:
+            A filtered scenario dictionary where:
+            - Keys are track UUIDs when the log matches the condition.
+            - Values are nested dictionaries containing timestamps.
+    
+    Example:
+        cars_in_rain = is_weather(cars, log_dir, condition='rain')
+    """
+
+def is_time_of_day(
+    track_candidates: dict,
+    log_dir: Path,
+    period: Literal["daylight", "dusk_or_dawn"],
+) -> dict:
+    """
+    Returns objects from the log when the scene's time of day matches the given period,
+    as labeled by the Context Layer VLM on the front camera. Time of day is evaluated
+    at log level: the whole log either matches or does not, determined by a majority
+    vote across per-timestamp front-camera annotations.
+    
+    Args:
+        track_candidates: The objects you want to filter from (scenario dictionary).
+        log_dir: Path to scenario logs.
+        period: Time-of-day period. Must be one of 'daylight' or 'dusk_or_dawn'.
+    
+    Returns:
+        dict:
+            A filtered scenario dictionary where:
+            - Keys are track UUIDs when the log matches the period.
+            - Values are nested dictionaries containing timestamps.
+    
+    Example:
+        peds_at_dusk = is_time_of_day(pedestrians, log_dir, period='dusk_or_dawn')
+    """
+
+def near_infrastructure(
+    track_candidates: dict,
+    log_dir: Path,
+    infrastructure: Literal[
+        # per-camera labels (visibility in a ring camera)
+        "bus_stop", "parking_lot", "railroad_tracks", "fence",
+        "red_painted_lane", "construction_zone", "gas_station",
+        # ego labels (ego vehicle is on/inside)
+        "bridge", "brick_street", "pothole", "filled_pothole", "storm_grate",
+        "road_damage", "streetcar_tracks", "roundabout", "school_zone",
+        "speed_limit_zone", "shadow_of_building",
+        "green_light", "yellow_light", "broken_traffic_light",
+    ],
+) -> dict:
+    """
+    Filter tracks to timestamps where a Context Layer VLM infrastructure
+    label holds. The category of ``infrastructure`` (not the track type) drives
+    the matching path. Labels are either per-camera (VLM flag in a ring camera)
+    or ego-only (scene-level: ego vehicle is on/inside the item); see the
+    Literal type for exact members.
+    
+    Pass conditions:
+                    | per-camera label              | ego label
+        ------------+-------------------------------+-----------------------------
+        non-ego     | a ring cam flags label AND    | scene-level: any ts at which
+        track       | the track's cuboid projects   | ego.<label> is true passes
+                    | into that same camera         | (the track's own position
+                    |                               |  is NOT checked)
+        ------------+-------------------------------+-----------------------------
+        ego track   | >= 2 ring cameras flag label  | ego.<label> is true at ts
+    
+    Dual label ('construction_zone' only): non-ego uses the per-camera path
+    only; ego uses per-camera OR ego flag.
+    
+    Note on non-ego + ego label (scene-level): this is the right path when the
+    natural-language intent is "object co-occurring while ego is on/inside the
+    infrastructure" (e.g., the prompt "person directing traffic in a school
+    zone", where the person — not the ego — is the referred track).
+    If the intent is instead "the object itself is on/inside the infrastructure",
+    combine with a positional atomic — ego labels carry no per-object signal.
+    
+    Args:
+        track_candidates: Tracks to filter (scenario dictionary).
+        log_dir: Path to scenario logs.
+        infrastructure: Context Layer label (see Literal for members). An
+            unrecognized label returns an empty result.
+    
+    Returns:
+        dict: A filtered scenario dictionary where keys are track UUIDs and
+        values are lists of timestamps when the condition holds.
+    
+    Example:
+        # ego label on ego track
+        ego_on_bridge = near_infrastructure(ego_vehicle, log_dir, infrastructure='bridge')
+        # per-camera label on non-ego track (positional match)
+        peds_at_bus_stop = near_infrastructure(pedestrians, log_dir, infrastructure='bus_stop')
+        # ego label on non-ego track (scene-level: pedestrians co-occurring while ego is in a school zone)
+        peds_while_ego_in_school_zone = near_infrastructure(pedestrians, log_dir, infrastructure='school_zone')
+        # dual label
+        vehicles_near_construction = near_infrastructure(vehicles, log_dir, infrastructure='construction_zone')
+    """
+
+def within_camera_view(
+    track_candidates: dict,
+    log_dir: Path,
+    camera_name:str
+) -> dict:
+    """
+    Returns objects that are within view of the specified camera.
+    
+    Args:
+        track_candidates: The objects you want to filter from (scenario dictionary).
+        log_dir: Path to scenario logs.
+        camera_name: The name of the camera.
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where:
+            - Keys are track UUIDs that meet the turning criteria.
+            - Values are nested dictionaries containing timestamps.
+    
+    Example:
+        red_cars = get_visual_actor(cars, log_dir, 'a red car')
+    """
+
+def turning(
+    track_candidates: dict,
+    log_dir:Path,
+    direction:Literal["left", "right", None]=None)->dict:
+    """
+    Returns objects that are turning in the given direction. 
+    
+    Args:
+        track_candidates: The objects you want to filter from (scenario dictionary).
+        log_dir: Path to scenario logs.
+        direction: The direction of the turn, from the track's point of view ('left', 'right', None).
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where:
+            - Keys are track UUIDs that meet the turning criteria.
+            - Values are nested dictionaries containing timestamps.
+    
+    Example:
+        turning_left = turning(vehicles, log_dir, direction='left')
+    """
+
+def changing_lanes(
+    track_candidates:dict,
+    log_dir:Path,
+    direction:Literal["left", "right", None]=None) -> dict:
+    """
+    Identifies lane change events for tracked objects in a scenario.
+    
+    Args:
+        track_candidates: The tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        direction: The direction of the lane change. None indicates tracking either left or right lane changes ('left', 'right', None).
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where:
+            Keys are track UUIDs that meet the lane change criteria.
+            Values are nested dictionaries containing timestamps and related data.
+    
+    Example:
+        left_lane_changes = changing_lanes(vehicles, log_dir, direction='left')
+    """
+
+def has_lateral_acceleration(
+    track_candidates:dict,
+    log_dir:Path,
+    min_accel=-np.inf,
+    max_accel=np.inf) -> dict:
+    """
+    Objects with a lateral acceleartion between the minimum and maximum thresholds. 
+    Most objects with a high lateral acceleration are turning. Postive values indicate accelaration
+    to the left while negative values indicate acceleration to the right. 
+    
+    Args:
+        track_candidates: The tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        direction: The direction of the lane change. None indicates tracking either left or right lane changes ('left', 'right', None).
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where:
+            Keys are track UUIDs that meet the lane change criteria.
+            Values are nested dictionaries containing timestamps and related data.
+    
+    Example:
+        jerking_left = has_lateral_acceleration(non_turning_vehicles, log_dir, min_accel=2)
+    """
+
+def cut_in_front_of(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path) -> dict:
+    """
+    Identifies cut-in events where a track candidate enters the forward lateral band
+    of a related candidate from the side.
+    
+    A cut-in is a track candidate A moving laterally into the short forward
+    lateral band of a related candidate B (in B's frame), while A and B travel in
+    roughly the same direction and B is moving. It covers standard lane-change
+    cut-ins, brief turn-off cut-ins, and aggressive swerves, and excludes
+    vehicles already ahead, longitudinal same-lane approaches, U-turns,
+    oncoming traffic, B changing lanes behind A, and a stationary B. All
+    thresholds are internal constants.
+    
+    Args:
+        track_candidates: Tracks that potentially cut in (scenario dictionary).
+        related_candidates: Tracks that are potentially cut in front of (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        A filtered scenario dictionary of track_candidates that cut in front of
+        at least one related candidate, with matched timestamps per pair.
+    
+    Example:
+        vehicle_cut_in_to_ego = cut_in_front_of(vehicles, ego, log_dir)
+    """
+
+def facing_toward(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    within_angle:float=22.5,
+    max_distance:float=50)->dict:
+    """
+    Identifies objects in track_candidates that are FACING (orientation-based)
+    toward objects in related candidates. Uses the track's forward axis
+    (heading), not its velocity vector — so it works for stationary subjects
+    too. Compare with heading_toward (velocity-based).
+    
+    The related candidate must lie within ``within_angle`` degrees on either
+    side of the track-candidate's forward axis.
+    
+    Args:
+        track_candidates: Tracks to test (the subjects that may be facing).
+        related_candidates: Targets the subject may be facing toward.
+        log_dir: Path to scenario logs.
+        within_angle: Half-angle (degrees) of the cone around the forward
+            axis. A related candidate is "faced toward" if it lies within
+            within_angle on either side. Default 22.5.
+        max_distance: Max distance (m) the related candidate can be away.
+            Default 50.
+    
+    Returns:
+        Filtered scenario dict containing the subset of track candidates
+        facing toward at least one of the related candidates.
+    
+    Example:
+        pedestrian_facing_away = scenario_not(facing_toward)(pedestrian, ego_vehicle, log_dir, within_angle=180)
+    """
+
+def heading_toward(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    angle_threshold:float=22.5,
+    minimum_speed:float=.5,
+    max_distance:float=np.inf)->dict:
+    """
+    Identifies objects in track_candidates whose VELOCITY VECTOR points at
+    objects in related_candidates (motion-based). The track candidate's
+    velocity vector must be within angle_threshold of the relative-position
+    vector to the related candidate, AND the velocity component toward the
+    related candidate must exceed minimum_speed.
+    
+    NOT the same as "approaching":
+      * heading_toward requires the SUBJECT (track) has measurable velocity
+        in the target's direction. For most "X approaching Y" prompts where
+        Y is static / stopped / at a location (peds at crossing, parked X,
+        stopped truck), use has_objects_in_relative_direction(X, Y,
+        direction='forward', ...) instead — it does not require subject motion.
+      * Use heading_toward only when both sides clearly have motion AND the
+        prompt is explicitly motion-based ("driving toward", "heading to").
+    
+    Args:
+        track_candidates: Tracks that could be heading toward another track.
+        related_candidates: Target objects to test.
+        log_dir: Path to the directory containing scenario logs and data.
+        angle_threshold: Maximum angle (deg) between the velocity vector and
+            the relative-position vector. Default 22.5.
+        minimum_speed: Minimum magnitude of the velocity component toward the
+            related candidate. Default 0.5 m/s.
+        max_distance: Maximum distance (m) the related candidate can be away
+            from the track to count. Default infinity.
+    
+    Returns:
+        Filtered scenario dict: subset of track candidates heading toward at
+        least one related candidate.
+    
+    Example:
+        # Motion-based: vehicle driving toward another moving vehicle.
+        heading_toward_traffic_cone = heading_toward(vehicles, traffic_cone, log_dir)
+    """
+
+def accelerating(
+    track_candidates:dict,
+    log_dir:Path,
+    min_accel:float=.65,
+    max_accel:float=np.inf)->dict:
+    """
+    Identifies objects in track_candidates that have a forward acceleration above a threshold.
+    Values under -1 reliably indicates braking. Values over 1.0 reliably indiciates accelerating.
+    
+    Args:
+        track_candidates: The tracks to analyze for acceleration (scenario dictionary)
+        log_dir:  Path to the directory containing scenario logs and data.
+        min_accel: The lower bound of acceleration considered
+        max_accel: The upper bound of acceleration considered
+    
+    Returns:
+        A filtered scenario dictionary containing the objects with an acceleration between the lower and upper bounds.
+    
+    Example:
+        accelerating_motorcycles = accelerating(motorcycles, log_dir)
+    """
+
+def has_velocity(
+    track_candidates:dict,
+    log_dir:Path,
+    min_velocity:float=.5,
+    max_velocity:float=np.inf)->dict:
+    """
+    Identifies objects with a velocity between the given maximum and minimum velocities in m/s.
+    Stationary objects may have a velocity up to 0.5 m/s due to annotation jitter.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        min_velocity: Minimum velocity (m/s). Defaults to 0.5.
+        max_velocity: Maximum velocity (m/s)
+    
+    Returns:
+        Filtered scenario dictionary of objects meeting the velocity criteria.
+    
+    Example:
+        fast_vehicles = has_min_velocity(vehicles, log_dir, min_velocity=5)
+    """
+
+def at_pedestrian_crossing(
+    track_candidates:dict,
+    log_dir:Path,
+    within_distance:float=1)->dict:
+    """
+    Identifies objects that within a certain distance from a pedestrian crossing. A distance of zero indicates
+    that the object is within the boundaries of the pedestrian crossing.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        within_distance: Distance in meters the track candidate must be from the pedestrian crossing. A distance of zero
+            means that the object must be within the boundaries of the pedestrian crossing.
+    
+    Returns:
+        Filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps.
+    
+    Example:
+        vehicles_at_ped_crossing = at_pedestrian_crossing(vehicles, log_dir)
+    """
+
+def on_lane_type(
+    track_uuid:dict,
+    log_dir,
+    lane_type:Literal["BUS", "VEHICLE", "BIKE"])->dict:
+    """
+    Identifies objects on a specific lane type.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        lane_type: Type of lane to check ('BUS', 'VEHICLE', or 'BIKE').
+    
+    Returns:
+        Filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps.
+    
+    Example:
+        vehicles_on_bus_lane = on_lane_type(vehicles, log_dir, lane_type="BUS")
+    """
+
+def near_intersection(
+    track_uuid:dict,
+    log_dir:Path,
+    threshold:float=5)->dict:
+    """
+    Identifies objects within a specified threshold of an intersection in meters.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        threshold: Distance threshold (in meters) to define "near" an intersection.
+    
+    Returns:
+        Filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps.
+    
+    Example:
+        bicycles_near_intersection = near_intersection(bicycles, log_dir, threshold=10.0)
+    """
+
+def on_intersection(track_candidates:dict, log_dir:Path):
+    """
+    Identifies objects located on top of an road intersection.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        Filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps.
+    
+    Example:
+        strollers_on_intersection = on_intersection(strollers, log_dir)
+    """
+
+def on_median(track_candidates:dict, log_dir:Path):
+    """
+    Identifies objects located on top of a road median (center divider, traffic island,
+    or boulevard median planted strip).
+    
+    Use ONLY when the prompt says the object is ON the median surface
+    ("X on the median", "X sitting on the median"). Do NOT use for "X near
+    the median", "X crossing the median", or descriptive mentions where the
+    median is just a road feature ("turning from a road with a large median").
+    Map-derived (not VLM).
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        Filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps.
+    
+    Example:
+        # "vehicle sitting on the median"
+        vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+        vehicles_on_median = on_median(vehicles, log_dir)
+    
+        # "pedestrian on the median"
+        peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+        peds_on_median = on_median(peds, log_dir)
+    
+        # "person in a wheelchair on the median"
+        wheelchairs = get_objects_of_category(log_dir, category='WHEELCHAIR')
+        wheelchairs_on_median = on_median(wheelchairs, log_dir)
+    
+        # "stopped vehicle sitting on the median" — compose with a motion filter
+        stopped_on_median = on_median(stationary(vehicles, log_dir), log_dir)
+    """
+
+def being_crossed_by(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    direction:Literal["forward", "backward", "left", "right"]="forward",
+    in_direction:Literal['clockwise','counterclockwise','either']='either',
+    forward_thresh:float=10,
+    lateral_thresh:float=5)->dict:
+    """
+    Strict perpendicular-cross relation: the related candidate's centroid
+    crosses a half-midplane of the tracked object's bounding box.
+    
+    Use ONLY for prompts where one object passes laterally across another's
+    path: "X being crossed by Y", "X being overtaken on the [left|right] by Y",
+    "vehicle crossed by jaywalking pedestrian". Both subject and crosser must
+    have velocity (VELOCITY_THRESH = 0.2 m/s internally).
+    
+    DO NOT use for:
+      * "X waiting for Y to cross"            -> X stopped + has_objects_in_relative_direction(X, Y, forward)
+      * "X nearly collides with side of Y"    -> get_objects_in_relative_direction(Y, X, left|right, within_distance=5)
+      * "X approaching Y" / "X approached by Y" -> APPROACHING rule (mostly has_objects_in_relative_direction)
+      * "X near Y" / "X next to Y"            -> near_objects or get_objects_in_relative_direction
+    
+    Args:
+        track_candidates: Tracks to analyze (subject of the cross relation).
+        related_candidates: Candidates (e.g., pedestrians or vehicles) that
+            cross the subject.
+        log_dir: Path to scenario logs.
+        direction: Axis and side of the half-midplane:
+            'forward'/'backward' (longitudinal cross — e.g. jaywalking across path),
+            'left'/'right'       (lateral cross — e.g. overtaking).
+        in_direction: Direction the related candidate must move to cross the
+            midplane ('clockwise', 'counterclockwise', or 'either'). Default
+            'either' — use this unless the prompt names a specific side
+            ("overtaken on the left" -> 'clockwise').
+        forward_thresh: Extends the midplane region by `track.length_m/2 +
+            forward_thresh` on each side of the track (NOT just `forward_thresh`).
+        lateral_thresh: Two planes offset from the midplane. Once a related
+            candidate crosses the midplane, it stays "crossing" until it goes
+            past lateral_thresh.
+    
+    Returns:
+        Filtered scenario dictionary { track_uuid: { related_uuid: [ts...] } }
+        for tracks crossed by the related candidates.
+    
+    Example:
+        overtaking_on_left = being_crossed_by(moving_cars, moving_cars, log_dir, direction="left", in_direction="clockwise", forward_thresh=4)
+        vehicles_crossed_by_peds = being_crossed_by(vehicles, pedestrians, log_dir)
+    """
+
+def being_overtaken(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    direction:Literal["left", "right"]="left",
+    lateral_thresh:float=10,
+    longitudinal_thresh:float=5)->dict:
+    """
+    Identifies tracks that are being overtaken (passed) on their left or right
+    by a related candidate moving in the same direction. An overtake is when the
+    candidate travels from behind the track to in front of it while staying on
+    the specified side of the track.
+    
+    Returns the TRACK (the one being passed). To make the overtaker the
+    referred object (e.g. "X overtaking Y"), wrap with reverse_relationship.
+    
+    Note: only same-direction passes are detected. Oncoming or cross-traffic
+    that moves opposite to the track will not trigger this.
+    
+    Matches prompts like "overtaking", "passing", "being passed by",
+    "overtaken on the left/right" — same-direction maneuvers only.
+    
+    Args:
+        track_candidates: Tracks being overtaken (the slower / passed object).
+        related_candidates: Candidates that may overtake the track.
+        log_dir: Path to scenario logs.
+        direction: Track-relative side the overtaker passes on ("left" or "right").
+        lateral_thresh: How far past the track's side edge the overtake corridor extends.
+        longitudinal_thresh: Extra buffer past the track's front/back; the matched
+            window keeps extending while the candidate stays within this buffer.
+    
+    Returns:
+        Filtered scenario dict of track candidates overtaken by the related candidates.
+    
+    Example:
+        overtaken_on_left = being_overtaken(moving_cars, moving_cars, log_dir, direction="left")
+        car_overtaking = reverse_relationship(being_overtaken)(fast_cars, slow_cars, log_dir, direction="right")
+    """
+
+def near_objects(
+    track_uuid:dict,
+    candidate_uuids:dict,
+    log_dir:Path,
+    distance_thresh:float=10,
+    min_objects:int=1,
+    include_self:bool=False)->dict:
+    """
+    Identifies timestamps when a tracked object is near a specified set of related objects.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        related_candidates: Candidates to check for proximity (scenario dictionary).
+        log_dir: Path to scenario logs.
+        distance_thresh: Maximum distance in meters a related candidate can be away to be considered "near".
+        min_objects: Minimum number of related objects required to be near the tracked object.
+    
+    Returns:
+        dict:
+            A relational scenario dictionary keyed by TRACK UUID:
+                { track_uuid: { related_uuid: [timestamp_ns, ...] } }
+            (Keys are track UUIDs that satisfy the proximity condition;
+             inner dict maps each qualifying related UUID to the timestamps
+             when proximity holds.)
+    
+    Example:
+        # Cross-category proximity (vehicle near multiple peds) — use near_objects,
+        # NOT group_of (group_of is for same-category cluster of the SUBJECT).
+        vehicles_near_peds = near_objects(vehicles, pedestrians, log_dir, min_objects=3)
+    """
+
+def following(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path) -> dict:
+    """
+    Identifies timestamps when a tracked object is following behind a candidate object.
+    
+    Strict semantic: the track candidate must satisfy ALL of:
+      (a) it shares lane membership with the related candidate (same lane group),
+      (b) its heading is similar to the lead candidate's (cosine similarity >= 0.5),
+      (c) it is positioned BEHIND the lead candidate along the lane direction.
+    Not a simple distance filter.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        related_candidates: Candidates that are potentially being followed (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        A filtered scenario dictionary containing all of the tracked candidates that are likely
+        following one of the related candidates.
+    
+    Example:
+        car_following_bike = following(cars, bikes, log_dir)
+    """
+
+def heading_in_relative_direction_to(track_candidates, related_candidates, log_dir, direction:Literal['same', 'opposite', 'perpendicular']):
+    """
+    Returns the subset of track candidates that are traveling in the given direction compared to the related canddiates.
+    
+    Arguements:
+        track_candidates: The set of objects that could be traveling in the given direction
+        related_candidates: The set of objects that the direction is relative to
+        log_dir: The path to the log data
+        direction: The direction that the positive tracks are traveling in relative to the related candidates
+            "opposite" indicates the track candidates are traveling in a direction 135-180 degrees from the direction the related candidates
+            are heading toward.
+            "same" indicates the track candidates that are traveling in a direction 0-45 degrees from the direction the related candiates
+            are heading toward.
+            "same" indicates the track candidates that are traveling in a direction 45-135 degrees from the direction the related candiates
+            are heading toward.
+    
+    Returns:
+        the subset of track candidates that are traveling in the given direction compared to the related candidates.
+    
+    Example:
+        oncoming_traffic = heading_in_relative_direction_to(vehicles, ego_vehicle, log_dir, direction='opposite')    
+    """
+
+def stationary(track_candidates:dict, log_dir:Path):
+    """
+    Returns objects that moved less than 2m over their length of observation in the scneario.
+    This object is only intended to separate parked from active vehicles. 
+    Use has_velocity() with thresholding if you want to indicate vehicles that are temporarily stopped.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps when the object is stationary.
+    
+    Example:
+        parked_vehicles = stationary(vehicles, log_dir)
+    """
+
+def at_stop_sign(track_candidates:dict, log_dir:Path, forward_thresh:float=10):
+    """
+    Identifies timestamps when a tracked object is in a lane corresponding to a stop sign. The tracked
+    object must be within 15m of the stop sign. This may highlight vehicles using street parking near a stopped sign.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        forward_thresh: Distance in meters the vehcile is from the stop sign in the stop sign's front direction
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps when the object is at a stop sign.
+    
+    Example:
+        vehicles_at_stop_sign = at_stop_sign(vehicles, log_dir)
+    """
+
+def in_drivable_area(track_candidates:dict, log_dir:Path)->dict:
+    """
+    Identifies objects within track_candidates that are within a drivable area.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps when the object is in a drivable area.
+    
+    Example:
+        buses_in_drivable_area = in_drivable_area(buses, log_dir)
+    """
+
+def on_road(
+    track_candidates:dict,
+    log_dir:Path)->dict:
+    """
+    Identifies objects that are on a road or bike lane. 
+    This function should be used in place of in_driveable_area() when referencing objects that are on a road. 
+    The road does not include parking lots or other driveable areas connecting the road to parking lots.
+    
+    Args:
+        track_candidates: Tracks to filter (scenario dictionary).
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        The subset of the track candidates that are currently on a road.
+    
+    Example:
+        animals_on_road = on_road(animals, log_dir)   
+    """
+
+def in_same_lane(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path) -> dict:
+    """
+    "
+    Identifies tracks that are in the same road lane as a related candidate. 
+    
+    Args:
+        track_candidates: Tracks to filter (scenario dictionary)
+        related_candidates: Potential objects that could be in the same lane as the track (scenario dictionary)
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        dict: 
+            A filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps when the object is on a road lane.
+    
+    Example:
+        bicycle_in_same_lane_as_vehicle = in_same_lane(bicycle, regular_vehicle, log_dir)    
+    """
+
+def on_relative_side_of_road(
+    track_candidates:dict,
+    related_candidates:dict,
+    log_dir:Path,
+    side=Literal['same', 'opposite']) -> dict:
+    """
+    Identifies tracks that are on the same or opposite side of the road as a related candidate.
+    
+    Args:
+        track_candidates: Tracks to filter (scenario dictionary)
+        related_candidates: Potential objects that could be on the same/opposite side as the track (scenario dictionary)
+        log_dir: Path to scenario logs.
+    
+    Returns:
+        dict:
+            A filtered scenario dictionary where keys are track UUIDs and values are lists of timestamps when the object is on a road lane.
+    
+    Example:
+        police_opposite_ego = on_relative_side_of_road(police_cars, ego, log_dir, side='opposite')
+    """
+
+def scenario_and(scenario_dicts:list[dict])->dict:
+    """
+    Returns a composed scenario where the track objects are the intersection of all of the track objects
+    with the same uuid and timestamps.
+    
+    Args:
+        scenario_dicts: the scenarios to combine 
+    
+    Returns:
+        dict:
+            a filtered scenario dictionary that contains tracked objects found in all given scenario dictionaries
+    
+    Example:
+        jaywalking_peds = scenario_and([peds_on_road, peds_not_on_pedestrian_crossing])
+    """
+
+def scenario_or(scenario_dicts:list[dict]):
+    """
+    Returns a composed scenario where that tracks all objects and relationships in all of the input scenario dicts.
+    
+    Args:
+        scenario_dicts: the scenarios to combine 
+    
+    Returns:
+        dict:
+            an expanded scenario dictionary that contains every tracked object in the given scenario dictionaries
+    
+    Example:
+        be_cautious_around = scenario_or([animal_on_road, stroller_on_road])
+    """
+
+def reverse_relationship(func):
+    """
+    Wraps relational functions to switch the top level tracked objects and relationships formed by the function. 
+    
+    Args:
+        relational_func: Any function that takes track_candidates and related_candidates as its first and second arguements
+    
+    Returns:
+        dict:
+            scenario dict with swapped top-level tracks and related candidates
+    
+    Example:
+        group_of_peds_near_vehicle = reverse_relationship(near_objects)(vehicles, peds, log_dir, min_objects=3)
+    """
+
+def scenario_not(func):
+    """
+    Wraps composable functions to return the difference of the input track dict and output scenario dict.
+    Using scenario_not with a composable relational function will not return any relationships.
+    
+    Args:
+        composable_func: Any function that takes track_candidates as its first input
+    
+    Returns:
+    
+    Example:
+        # Generic negation of a composable filter.
+        peds_not_at_crossing = scenario_not(at_pedestrian_crossing)(peds, log_dir)
+        # For "moving / active" use active() directly; for "parked / stationary"
+        # use stationary() directly.
+    """
+
+def between_two_objects(
+    track_candidates: dict,
+    anchors_a: dict,
+    anchors_b: dict,
+    log_dir: Path,
+    max_pair_distance: float = 35.0,
+    max_perp_distance: float = 2.0,
+    max_anchor_distance: float = 15.0,
+    min_anchor_distance: float = 1.0,
+    pair_must_differ: bool = True,
+    min_pairs: int = 1,
+) -> dict:
+    """
+    Identifies tracks that are spatially between two anchor sets — axis-free geometric primitive.
+    
+    A subject S is "between" anchor a (from anchors_a) and anchor b (from anchors_b) at timestamp t
+    if there exists a pair (a, b) at t such that S lies on (or within max_perp_distance of) the line
+    segment a-b. Concretely:
+    
+        - ||a - b|| <= max_pair_distance
+        - proj_t = ((S - a) . (b - a)) / ||b - a||^2 in [0, 1]
+        - perpendicular distance from S to line ab <= max_perp_distance
+        - a != b when pair_must_differ is True (use anchors_a == anchors_b for the symmetric case)
+    
+    Unlike has_objects_in_relative_direction, this primitive uses the world frame and does not
+    depend on the subject's heading — robust to noisy yaw (e.g. pedestrians).
+    
+    Args:
+        track_candidates: Subjects (scenario dictionary). Output is keyed by these uuids.
+        anchors_a: First anchor set (scenario dictionary). Pass the same dict twice for symmetric "between two X".
+        anchors_b: Second anchor set (scenario dictionary). Different from anchors_a for asymmetric anchors.
+        log_dir: Path to scenario logs.
+        max_pair_distance: Maximum allowed ||a - b||. Default 35.0 m (covers L-axis sandwiches like lane merging).
+        max_perp_distance: Maximum allowed perpendicular distance from subject to line a-b. Default 2.0 m.
+        max_anchor_distance: Maximum allowed ||subject - anchor|| for each anchor in the pair. Default 15.0 m.
+            Caps how far an anchor can be from the subject. Prevents wide-spread anchor pairs that
+            geometrically include the subject but are semantically unrelated (e.g. long barrier line).
+        min_anchor_distance: Minimum allowed ||subject - anchor|| for each anchor. Default 1.0 m.
+            Tangential safety: rejects pairs where subject is right next to an anchor.
+        pair_must_differ: When True, a == b pairs are excluded (required for symmetric anchors).
+        min_pairs: Minimum number of distinct valid (a, b) pairs at a timestamp for the subject to qualify.
+    
+    Default values were derived from a parallel grid search over 47 configurations on val set
+    between-prompts (best HOTA-T = 0.368 with these params, vs LLM baseline 0.306).
+    
+    Returns:
+        dict: Subject-keyed relational scenario dictionary
+              { subj_uuid: { anchor_uuid: [timestamp_ns, ...], ... }, ... }
+              Inner anchor uuids are the union of all valid anchors that participated in a qualifying pair.
+    
+    Example:
+        motorcycles = get_objects_of_category(log_dir, category='MOTORCYCLE')
+        vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
+        between     = between_two_objects(motorcycles, vehicles, vehicles, log_dir)
+    """
+
+def group_of(
+    track_candidates: dict,
+    related_candidates: dict,
+    log_dir: Path,
+    min_objects: int = 3,
+    within_distance: float = 3.0,
+) -> dict:
+    """
+    Returns track_candidates that belong to a group of >= min_objects same-category
+    objects within within_distance. **min_objects COUNTS THE TRACK ITSELF**:
+    "group of three" -> min_objects=3 (the track + 2 neighbours).
+    
+    Thin semantic wrapper around near_objects() for prompts that mention 'group'.
+    
+    Args:
+        track_candidates: tracks to test for group membership.
+        related_candidates: candidates that may form a group with the track
+            (typically the same set as track_candidates, e.g. peds & peds).
+        log_dir: scenario logs path.
+        min_objects: minimum total group size including the track itself.
+        within_distance: maximum spacing (m) between any two group members.
+    
+    Returns:
+        A scenario dict mapping each group member uuid to its qualifying
+        neighbours and timestamps. Same shape as near_objects().
+    
+    Translation to near_objects: near_objects counts OTHER candidates only, so
+    'group of three including self' (min_objects=3) maps to near_objects'
+    min_objects=2.
+    
+    Example:
+        # group of pedestrians
+        peds = get_objects_of_category(log_dir, category='PEDESTRIAN')
+        ped_groups = group_of(peds, peds, log_dir, min_objects=3)
+    
+        # vehicle heading toward a pedestrian group
+        moving_vehicles = active(
+            get_objects_of_category(log_dir, category='VEHICLE'), log_dir)
+        v_heading = heading_toward(moving_vehicles, ped_groups, log_dir)
+    """
+
+def active(track_candidates:dict, log_dir:Path, min_speed:float=0.5)->dict:
+    """
+    Returns objects that are actively moving (i.e., not parked). Preferred
+    wrapper for generic motion language ("moving", "walking", "driving",
+    "active") over scenario_not(stationary).
+    
+    Applicable to ANY motion-tracking subject: vehicles, pedestrians,
+    bicyclists, motorcyclists, etc.
+    
+    An object is active when it is **not stationary over the whole scenario**,
+    i.e. scenario_not(stationary). With the default min_speed (0.5 m/s,
+    annotation-jitter floor), per-timestamp velocity adds no extra filter and
+    the result equals scenario_not(stationary)(track_candidates, log_dir);
+    timestamps where the moving object is briefly halted (e.g. waiting at a
+    stop sign) are kept. Pass a larger min_speed to additionally restrict the
+    output to timestamps where the instantaneous speed is at least that value.
+    
+    Do NOT wrap active() on a track set whose filter already implies motion:
+    at_pedestrian_crossing, being_crossed_by, turning, changing_lanes,
+    accelerating, has_lateral_acceleration. Those filters already select an
+    active subset; stacking active() on top is redundant AND narrows the
+    timestamp window unnecessarily.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        min_speed: Minimum instantaneous speed in m/s. Values above 0.5 also
+            intersect with has_velocity(min_velocity=min_speed).
+            Convert km/h to m/s: m/s = km/h / 3.6.
+    
+    Returns:
+        dict:
+            A filtered scenario dictionary keyed by track_uuid.
+    
+    Example:
+        active_vehicles = active(get_objects_of_category(log_dir, 'VEHICLE'), log_dir)
+        fast_vehicles = active(vehicles, log_dir, min_speed=5.0)
+        # Same for cyclists/peds — applicable to any motion-tracking subject
+        cyclists = get_objects_of_category(log_dir, category='BICYCLIST')
+        moving_cyclists = active(cyclists, log_dir)
+    """
+
+def near_construction_objects(
+    track_candidates: dict,
+    log_dir: Path,
+    distance_thresh: float = 12.0,
+    min_objects: int = 1,
+) -> dict:
+    """
+    Identifies tracks within distance_thresh of at least min_objects
+    construction objects (CONSTRUCTION_BARREL, CONSTRUCTION_CONE, or SIGN).
+    
+    Distinct from near_infrastructure(..., 'construction_zone'): this function
+    is 3D proximity to physical construction markers (per-track, per-timestamp),
+    whereas near_infrastructure uses Context Layer VLM labels (scene-level).
+    Prefer this for "X near/in construction zone", "X near construction
+    cone/barrel", "X at work zone".
+    
+    SIGN is included because construction work zones are commonly marked by
+    temporary signage (e.g., "ROAD WORK AHEAD", "DETOUR") alongside barrels
+    and cones.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        distance_thresh: Maximum cuboid distance from a construction object (m).
+        min_objects: Minimum number of construction objects (barrels, cones,
+            and signs combined) within distance_thresh required to qualify.
+    
+    Returns:
+        Filtered scenario dictionary containing tracks within distance_thresh of
+        at least min_objects construction objects per timestamp.
+    
+    Example:
+        vehicles_near_construction = near_construction_objects(vehicles, log_dir)
+    """
+
+def in_turn_lane(
+    track_candidates: dict,
+    log_dir: Path,
+    side: Literal['left', 'right', 'center', None] = None,
+) -> dict:
+    """
+    Identifies tracks currently in a turn lane — either inside an intersection
+    turn lane, or in a lane immediately preceding one.
+    
+    Location condition (per ts, both filtered by `side`):
+    - (a) The current lane is inside an intersection AND the lane itself is a
+      turn lane (get_turn_direction(ls) matches side), OR
+    - (b) The current lane has at least one successor whose get_turn_direction
+      matches side (mixed straight+turn lanes still qualify — at least one
+      successor is a turn lane).
+    
+    The 'center' option is reserved for center / median two-way left-turn
+    lanes (commonly outside intersections) and currently returns an empty
+    result — kept in the signature so LLM-generated callers that pass it
+    don't TypeError.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        side: Filter by turn direction.
+            None: any turn (left or right) qualifies.
+            'left': only left turns.
+            'right': only right turns.
+            'center': center turn lane (currently unsupported, returns empty).
+    
+    Returns:
+        Scenario dictionary mapping each input track UUID to the sorted list
+        of timestamps where that track is in / approaching a turn lane
+        matching the side filter.
+    
+    Example:
+        left_turn_lane_vehicles = in_turn_lane(vehicles, log_dir, side='left')
+        vehicles_in_turn_lanes  = in_turn_lane(vehicles, log_dir)
+    """
+
+def waiting_to_turn(
+    track_candidates: dict,
+    log_dir: Path,
+    side: Literal['left', 'right', 'center', None] = None,
+    max_speed: float = 2.0,
+) -> dict:
+    """
+    Identifies tracks that are waiting to turn — the front-third reference
+    point of the cuboid is inside an intersection turn lane while the track is
+    moving at low speed.
+    
+    Location condition (per ts, filtered by `side`):
+    - A lane containing the track's "front-1/3 point" (cuboid centroid shifted
+      by length/6 forward along its yaw) is an intersection lane AND its turn
+      direction (get_turn_direction(ls)) matches `side`.
+    - The front-1/3 reference fires as soon as the leading third of the
+      vehicle has entered the intersection turn lane (instead of waiting for
+      the centroid to enter).
+    
+    Speed condition (per ts): the track's instantaneous speed at that ts is
+    <= max_speed. Computed directly from get_nth_pos_deriv(..., 1) instead of
+    has_velocity so that fully-stationary tracks (e.g., stopped at a red
+    arrow) are not excluded by the trajectory-level stationary filter inside
+    has_velocity, and so the [0, max_speed] band is honored end-to-end.
+    
+    The 'center' option is reserved for center / median two-way left-turn
+    lanes and currently returns an empty result.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        side: Filter by turn direction.
+            None: any turn (left or right) qualifies.
+            'left': only left turns.
+            'right': only right turns.
+            'center': returns empty (not supported).
+        max_speed: Maximum speed (m/s) to qualify as "waiting". Default 0.5.
+    
+    Returns:
+        Sorted list of timestamps where the track is inside an intersection on
+        a turn lane matching the side filter and moving at low speed.
+    
+    Example:
+        waiting_left_turn_vehicles = waiting_to_turn(vehicles, log_dir, side='left')
+    """
+
+def braking(
+    track_candidates: dict,
+    log_dir: Path,
+    max_accel: float = -0.65,
+) -> dict:
+    """
+    Identifies tracks that are braking (forward deceleration ≤ max_accel m/s²).
+    
+    Thin wrapper around accelerating(): selects frames whose forward acceleration
+    falls in (-inf, max_accel]. Use this for generic "braking" prompts where the
+    natural-language strength is unspecified ("is braking", "slowing to stop",
+    "braking at crosswalk"). For prompts that explicitly call out *hard* or
+    *heavy* braking, prefer braking_hard() (default -2.5 m/s²) instead.
+    
+    The default threshold -0.65 follows the calibration note in accelerating()'s
+    docstring: "Values under -0.65 reliably indicates braking". This is sloppier
+    than braking_hard so it catches plateau / late-stage braking frames that
+    sit between gentle coasting and a true hard-stop event, but tight enough
+    to reject noise-driven negative-accel spikes during cruise.
+    
+    Args:
+        track_candidates: The tracks to analyze (scenario dictionary).
+        log_dir: Path to the directory containing scenario logs.
+        max_accel: Upper bound of forward acceleration considered "braking"
+            (m/s²). Default -0.65; pass a stricter value (e.g. -1.5, -2.0)
+            to require firmer braking, or use braking_hard() for the
+            heavy-braking endpoint (-2.5).
+    
+    Returns:
+        Filtered scenario dictionary with timestamps where forward accel
+        ≤ max_accel.
+    
+    Examples:
+        # 1) Plain "vehicle is braking".
+        braking_vehicles = braking(vehicles, log_dir)
+    
+        # 2) "vehicle two cars ahead is braking" — compose with
+        #    nth_object_in_direction so the predicate applies only to the
+        #    2nd vehicle in front of ego.
+        vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+        second_ahead = nth_object_in_direction(vehicles, log_dir,
+                                               direction='forward', n=2)
+        braking_second_ahead = braking(second_ahead, log_dir)
+    
+        # 3) "vehicle braking at pedestrian crossing" — intersect with
+        #    at_pedestrian_crossing so only crossing-located braking events
+        #    survive.
+        braking_at_xing = scenario_and([
+            braking(vehicles, log_dir),
+            at_pedestrian_crossing(vehicles, log_dir),
+        ])
+    
+        # 4) Stricter cutoff (e.g. semi-heavy braking).
+        firm_braking = braking(vehicles, log_dir, max_accel=-1.5)
+    
+        # 5) If you need "hard / heavy" braking specifically, switch to
+        #    braking_hard (default -2.5).
+        # heavy = braking_hard(vehicles, log_dir)
+    """
+
+def braking_hard(
+    track_candidates: dict,
+    log_dir: Path,
+    max_accel: float = -2.5,
+) -> dict:
+    """
+    Identifies tracks that are braking hard (forward deceleration ≤ max_accel m/s²).
+    
+    Thin wrapper around accelerating(): selects frames whose forward acceleration
+    falls in (-inf, max_accel]. Single-threshold criterion on one signal —
+    no jerk / windowed / sustained checks — chosen because "braking hard" in
+    natural language is a strength judgment, not a smoothness judgment, and
+    requiring a sharp jerk onset was dropping the plateau frames of genuine
+    sustained hard brakes.
+    
+    Args:
+        track_candidates: The tracks to analyze (scenario dictionary).
+        log_dir: Path to the directory containing scenario logs.
+        max_accel: Upper bound of forward acceleration considered "hard
+            braking" (m/s²). Default -2.5 calibrated against val GT
+            hard-braking distribution ("vehicle braking heavily" prompts,
+            n=5 tracks / 116 frames, GT accel range [-5.35, -2.51]). More
+            negative values catch stronger brake events (e.g. -3.5 for
+            emergency-only braking).
+    
+    Returns:
+        Filtered scenario dictionary with timestamps where forward accel
+        ≤ max_accel.
+    
+    Example:
+        hard_braking_vehicles = braking_hard(vehicles, log_dir)
+    """
+
+def reversing(
+    track_candidates: dict,
+    log_dir: Path,
+    min_speed: float = 0.2) -> dict:
+    """
+    Returns objects that are reversing, defined as having negative forward velocity in the
+    object's own body frame (x-axis). Parked objects are excluded.
+    
+    Equivalently: the city-frame velocity vector and the body-frame yaw vector
+    are oriented opposite (dot product < -min_speed × |v|). Trajectory-level
+    stationary tracks are dropped to suppress jitter-induced false positives.
+    
+    Args:
+        track_candidates: The objects you want to filter from (scenario dictionary).
+        log_dir: Path to scenario logs.
+        min_speed: Minimum backward speed in m/s. Default 0.2 accommodates
+            precise parking maneuvers (slow reverse ≥ 0.3 m/s) while still
+            filtering annotation jitter. Aligned with driving_wrong_direction's
+            min_speed convention.
+    
+    Returns:
+        dict:
+            A filtered scenario dictionary where:
+            - Keys are track UUIDs that are reversing.
+            - Values are lists of timestamps during which the object moves backward.
+    
+    Example:
+        reversing_vehicles = reversing(vehicles, log_dir)
+    """
+
+def in_parallel_parking(
+    track_candidates: dict,
+    log_dir: Path,
+    # zone-membership params (subject-position vs row)
+    zone_perp_max_m: float = 6.0,
+    zone_along_margin_m: float = 5.0,
+    # parking-row detection params (static filter + alignment clustering)
+    static_speed_max_mps: float = 0.1,
+    static_disp_max_m: float = 2.0,
+    static_n_frames_min: int = 12,
+    row_perp_max_m: float = 3.0,
+    row_along_max_m: float = 70.0,
+    row_yaw_align_max_deg: float = 20.0,
+    row_min_count: int = 3,
+) -> list:
+    """
+    Identifies timestamps where the subject is INSIDE a parallel-parking zone.
+    
+    Single-function pipeline:
+        STEP 1 — detect parking rows from STATIC + aligned VEHICLE clusters:
+            (a) iterate all VEHICLE-category tracks
+            (b) keep tracks with city-frame MEDIAN speed <= static_speed_max_mps
+                AND total displacement <= static_disp_max_m
+                AND observation length >= static_n_frames_min
+                (median makes the filter robust to tracker position jitter —
+                 a truly static car may have mean speed > 80 m/s due to a single
+                 frame outlier, but its median over the window stays < 0.1 m/s.)
+            (c) for each unused static seed, gather neighbors within
+                row_perp_max_m perp distance, ±row_along_max_m along, yaw
+                parallel (or anti-parallel) within row_yaw_align_max_deg
+            (d) accept cluster when size >= row_min_count, PCA-fit the line
+    
+        STEP 2 — zone membership: for each subject timestamp, project the
+                 position into the row's (along, perp) frame and test
+                 |perp| ≤ zone_perp_max_m  AND  |along| ≤ span/2 + along_margin.
+    
+    Subject heading is ignored — only position is tested ("did it ENTER the
+    zone?"). Use scenario_and / scenario_or to combine with motion filters
+    (reversing, stationary, has_velocity, …) for prompt-specific semantics.
+    
+    Timestamp safety:
+        @composable wrapper (refAV/utils.py:248-251) INTERSECTS returned ts
+        with the input scenario_dict's allowed ts via scenario_at_timestamps().
+        So chains (reversing → in_parallel_parking, stationary → …) preserve
+        the upstream filter — no timestamp leakage.
+    
+    Performance: STEP 1 is the heavy step (iterates all VEHICLE tracks). It is
+    cached at module level (_PARKING_ROWS_CACHE) by (log_dir, params) so
+    multiple per-uuid calls in the same worker process share one row scan.
+    
+    Args:
+        track_candidates: Subjects (scenario_dict).
+        log_dir: scenario logs path.
+        zone_perp_max_m: half-width perpendicular to the parking row line.
+            Default 6.0 m — chosen via 2D ablation (zone=2 vs zone=6): zone=6
+            gives PRED HOTA-T 0.247 / GT 0.466 vs zone=2's 0.153 / 0.225.
+            Wider band absorbs tracker position noise & row-line tilt error,
+            so subjects close to the spot still get counted.
+        zone_along_margin_m: extra extent past row endpoints, each side. Default 5.0 m.
+        static_speed_max_mps: MEDIAN speed threshold (m/s). Default 0.1.
+        static_disp_max_m: total displacement threshold (m). Default 2.0.
+        static_n_frames_min: minimum observation length. Default 12.
+        row_perp_max_m: max perp distance from candidate row line to include a
+            neighbor as row member. Default 3.0 m.
+        row_along_max_m: max along-axis range for cluster seeds. Default 70.0 m.
+        row_yaw_align_max_deg: max heading deviation (∥ or anti-∥). Default 20°.
+        row_min_count: minimum cluster size to accept a row. Default 3.
+    
+    Returns:
+        list of timestamps (int) where the subject is inside any parking zone.
+    
+    Example:
+        # vehicle that is reversing AND inside the parking zone
+        vehicles  = get_objects_of_category(log_dir, category='VEHICLE')
+        reversing_v = reversing(vehicles, log_dir)
+        reverse_in_park = in_parallel_parking(reversing_v, log_dir)
+    """
+
+def nth_object_in_direction(
+    track_candidates,
+    log_dir: Path,
+    direction: Literal["forward", "backward", "left", "right"] = "forward",
+    n: int = 1,
+    view_point=None,
+    within_distance: float = 60.0,
+    lateral_thresh: float = 4.0,
+    active_only: bool = True,
+    min_active_speed: float = 0.0,
+    lane_lateral_thresh: float = 2.0,
+) -> dict:
+    """
+    Selects the n-th nearest object inside a directional region from the
+    `view_point`, per timestamp. n=1 returns the nearest, n=2 the second
+    nearest, etc. Only the single n-th object is returned per timestamp.
+    
+    Args:
+        track_candidates: scenario dict (or list/uuid) — the POOL of candidates
+            to rank. Output uuids are drawn from this set.
+        log_dir: scenario log directory.
+        direction: 'forward' uses an FOV cone modeled after ego ring_front_center
+            (47° horizontal, 60 m cap). 'backward' is lane-aware: the candidate
+            must be longitudinally behind the view_point AND within
+            `lane_lateral_thresh` of the centerline of vp's current lane or
+            up to 2 best-direction-similarity predecessor lanes. 'left'/'right'
+            use a simple rectangular region in view_point body frame.
+        n: ordinal rank (1-based).
+        view_point: scenario dict, uuid string, or None. Defines the perspective
+            (origin and forward axis). Defaults to ego.
+        within_distance: range cap (m) for non-forward directions.
+        lateral_thresh: lateral offset cap (m) for left/right directions
+            (NOT used by backward — backward uses lane_lateral_thresh).
+        active_only: when True (default), the ranking pool is filtered by
+            scenario-level active() — drops candidates that never moved
+            >3 m total (pure parked vehicles). When `min_active_speed` > 0,
+            an additional per-timestamp speed gate is applied on top. Pass
+            False to disable all active filtering.
+        min_active_speed: per-frame ground speed threshold (m/s) for the
+            optional gate on top of scenario-level active(). Default 0.0 —
+            disabled because val-eval showed that "stopped-for-action" GT
+            vehicles (e.g., a vehicle stopped while a pedestrian crosses in
+            front) have full-trajectory max speeds (~0.1–0.4 m/s) that
+            overlap with parked-curb FPs, so per-frame speed alone cannot
+            separate them and the gate silently drops GT. Set to >0 only
+            when the prompt guarantees GT vehicles are actively moving
+            (e.g., "braking", "changing lanes", "turning") AND parked-
+            vehicle FPs are the dominant error mode. Lane-aware filtering
+            is the more robust long-term fix for the stopped-vs-parked
+            ambiguity.
+        lane_lateral_thresh: max perpendicular distance (m) from a backward
+            lane chain centerline for a candidate to qualify. Default 2.0 —
+            restricts the rank pool to ego/vp's own lane (lane half-width
+            ≈ 1.75 m). Increase to capture adjacent-lane vehicles: ~3.5 for
+            ego + 1 neighbor, ~5.0 for full neighbor lane. Only used when
+            direction='backward'.
+    
+    Returns:
+        dict: flat scenario dict mapping the n-th uuid to its timestamps. The view_point is NOT
+        included as a key (it is the perspective, not the answer).
+    
+    Example:
+        # default view_point = ego, scenario-level active() only
+        second_ahead = nth_object_in_direction(vehicles, log_dir, direction='forward', n=2)
+        # explicit non-ego view_point
+        second_ahead_of_X = nth_object_in_direction(
+            vehicles, log_dir, direction='forward', n=2, view_point=other_vehicle_dict)
+        # opt out of all active filtering (rank parked + active together)
+        second_any = nth_object_in_direction(
+            vehicles, log_dir, direction='forward', n=2, active_only=False)
+        # opt-in to per-frame speed gate (use only when GT is guaranteed moving)
+        second_strict = nth_object_in_direction(
+            vehicles, log_dir, direction='forward', n=2, min_active_speed=0.1)
+    """
+
+def on_road_with_n_lanes(
+    track_candidates: dict,
+    log_dir: Path,
+    n_lanes: int = None,
+    lane_scope: Literal['same_direction', 'per_direction', 'total'] = 'same_direction',
+    one_way: bool = False,
+    lane_types: tuple = ('VEHICLE', 'BUS'),
+) -> dict:
+    """
+    Identifies timestamps when a track is on a road with a given lane structure.
+    
+    At each timestamp the track's current lane is resolved, then its parallel
+    lanes are counted laterally: n_same (lanes in the track's travel direction,
+    including its own) and n_opposite (lanes in the opposing direction). Same-
+    vs-opposite is determined from AV2's reciprocal neighbor links rather than a
+    geometric gap. Center two-way left-turn lanes (TWLTL) are excluded, and only
+    lanes whose type is in ``lane_types`` are counted.
+    
+    The ``lane_scope`` (what n_lanes counts) and ``one_way`` (no oncoming lanes)
+    conditions are independent and combine with AND.
+    
+    Args:
+        track_candidates: Tracks to analyze (scenario dictionary).
+        log_dir: Path to scenario logs.
+        n_lanes: The lane count to require. None means do not check the count —
+            only the ``one_way`` / symmetric-road structural condition applies.
+        lane_scope: What ``n_lanes`` counts.
+            'same_direction' (default): lanes in the track's travel direction
+                (n_same == n_lanes).
+            'per_direction': the same count in BOTH directions
+                (n_same == n_lanes AND n_opposite == n_lanes); when n_lanes is
+                None, requires a symmetric road (n_same == n_opposite > 0).
+            'total': all lanes on the road (n_same + n_opposite == n_lanes).
+        one_way: When True, additionally require no oncoming lanes
+            (n_opposite == 0). Maps directly to 'one-way road' prompts.
+        lane_types: Lane types counted toward the totals. Default ('VEHICLE',
+            'BUS') — BIKE lanes and other types are walked past but not counted.
+            None counts every lane type.
+    
+    Intersection handling: intersection lane neighbor links are sparse and do
+    not represent standard parallel lanes, so at an intersection timestamp the
+    road structure is taken from the track's APPROACH road — the last
+    non-intersection lane the track occupied before entering the junction
+    (falling back to the exit road, then to a graph predecessor/successor).
+    Timestamps where no reference road can be resolved (e.g. the track is only
+    observed inside the junction) are dropped.
+    
+    Returns:
+        Sorted list of timestamps where the lane-structure condition holds.
+    
+    Example:
+        ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+        # 'three-lane one-way street'
+        on_3lane_oneway = on_road_with_n_lanes(ego, log_dir, n_lanes=3, one_way=True)
+        # 'two lanes per direction'
+        on_2_per_dir = on_road_with_n_lanes(ego, log_dir, n_lanes=2, lane_scope='per_direction')
+        # 'one way road' (count unspecified)
+        on_oneway = on_road_with_n_lanes(ego, log_dir, one_way=True)
+    """
+
+def output_scenario(
+    scenario:dict,
+    description:str,
+    log_dir:Path,
+    output_dir:Path,
+    visualize:bool=False,
+    **visualization_kwargs):
+    """
+    Outputs a file containing the predictions in an evaluation-ready format. Do not provide any visualization kwargs. 
+    """

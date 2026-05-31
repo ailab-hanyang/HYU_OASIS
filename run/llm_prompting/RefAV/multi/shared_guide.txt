@@ -1,0 +1,534 @@
+[GT-MATCHING GUIDANCE]
+The evaluator (HOTA-Temporal) rewards prediction sets that closely match the GT's
+referred (label=0) tracks. Follow these patterns to produce robust outputs:
+
+1. LOOSER-IS-BETTER:
+   - Prefer near_intersection(threshold=15) over on_intersection (strict polygon)
+   - Default within_distance: 30-50m (NOT 10-20m unless prompt explicitly says
+     "directly next to" or "right behind")
+   - OMIT lateral_thresh unless prompt specifies "in same lane" or "directly"
+   - within_camera_view: AVOID — usually emptier than helpful
+
+2. CATEGORY EXPANSION — the single highest-impact pattern:
+   - "truck" → scenario_or([TRUCK, BOX_TRUCK, TRUCK_CAB])
+   - "motorcycle" → scenario_or([MOTORCYCLE, MOTORCYCLIST])
+   - "bus" → scenario_or([BUS, SCHOOL_BUS, ARTICULATED_BUS])
+   - "delivery truck" → scenario_or([TRUCK, BOX_TRUCK])
+   - "bicycle" → scenario_or([BICYCLE, BICYCLIST])
+   - "scooter" / "wheelchair user" → scenario_or([WHEELED_DEVICE, WHEELED_RIDER])
+   - "cement mixer" / "utility vehicle" / "forklift" → scenario_or([TRUCK, LARGE_VEHICLE])
+   - "official signaler" → scenario_or([OFFICIAL_SIGNALER, PEDESTRIAN])   (the OFFICIAL_SIGNALER
+     category is frequently mislabeled PEDESTRIAN by the tracker)
+   - "animal" → scenario_or([ANIMAL, DOG])   (animals are usually tracked as DOG)
+   - When uncertain about category, ALWAYS prefer the union over a single category.
+   - WHY these unions: the tracker mislabels rare/fine classes under a coarse one,
+     so gathering the union is the same robustness motive as the broad gather for
+     get_visual_actor — never trust a single rare label.
+
+3. DROP TRANSIENT ACTION ATOMS:
+   These atoms often produce EMPTY results because they require precise
+   short-duration matches that the GT may not record:
+       braking, braking_hard, reversing, between_two_objects,
+       following, cut_in_front_of, has_lateral_acceleration
+   Use ONLY when the description contains the exact trigger word:
+       "X is braking" → braking(X, log_dir) ✓
+       "X slowing near Y" → use position + category, NOT braking() ✗
+       "X reversing" → reversing(X, log_dir) ✓
+       "X waiting / yielding / stopping" → has_velocity(X, log_dir, 0, 0.5), NOT stationary ✗
+   For paraphrases of these actions, prefer the position + category chain alone.
+
+4. BROADER FALLBACK WHEN UNCERTAIN:
+   If your filter chain risks producing an empty result, prefer a 1-2 line fallback:
+       output_scenario(base_category, description, log_dir, output_dir)
+   GT often spans many timestamps for many tracks; a broad fallback beats an
+   empty narrow result. This is the most reliable rescue mechanism.
+
+5. SUBJECT KEYING — ego vs related:
+   For queries that mention ego as a reference object, e.g.
+       "X near/in front of/behind ego"
+       "ego passing X"
+       "ego approaching X"
+   Consider BOTH subject keyings:
+       (a) subject = X (the named object):
+           get_objects_in_relative_direction(ego, X, ...)
+       (b) subject = ego:
+           output_scenario(ego, ...) as fallback
+   If your directional chain risks emptying, prefer (b).
+
+6. DIRECTION ENUM IS PER-FUNCTION — DO NOT MIX:
+   Different atoms accept different direction enum sets. Using the wrong value
+   silently falls back to None and breaks your filter.
+
+   turning(direction=...)         allowed: 'left' | 'right' | None
+   changing_lanes(direction=...)  allowed: 'left' | 'right' | None
+       → 'forward'/'backward'/'straight' are INVALID for these atoms.
+
+   has_objects_in_relative_direction(direction=...)
+   get_objects_in_relative_direction(direction=...)
+       allowed: 'forward' | 'backward' | 'left' | 'right'
+
+   heading_in_relative_direction_to(direction=...)
+       allowed: 'same' | 'opposite' | 'perpendicular'
+
+   being_crossed_by(direction=..., in_direction=...)
+       direction allowed: 'forward' | 'backward' | 'left' | 'right' | None
+       in_direction allowed: 'clockwise' | 'counterclockwise' | 'either'
+
+   on_relative_side_of_road(side=...)
+       allowed: 'same' | 'opposite'
+
+   For "going straight" or "continuing forward", do NOT pass direction='forward'
+   to turning() — instead OMIT the direction (or pass None) and constrain via
+   absence of turning.
+
+
+[COMPOSITION GRAMMAR]
+Build the answer in this order:
+  1. Retrieve the base set with get_objects_of_category(log_dir, category=...).
+     For category clusters, immediately wrap with scenario_or (Rule 2 above).
+  2. Filter / refine with @composable functions only when justified by the description.
+  3. Combine with relational functions when relations between two sets matter
+     (e.g. near_objects, has_objects_in_relative_direction).
+  4. Combine multiple scenarios with scenario_and([..]) / scenario_or([..]).
+  5. Negate by wrapping the FUNCTION (not its output):
+        scenario_not(at_pedestrian_crossing)(pedestrians, log_dir)
+  6. To make the SECOND argument the subject of the result, wrap the relational
+     function with reverse_relationship. The arguments stay in the SAME order;
+     only the keys of the returned dict flip.
+  7. End with output_scenario(...).
+
+
+[STRICT RULES — looser than v2; aligns with GT-MATCHING WISDOM]
+- Categories are CASE-SENSITIVE and must come from [CATEGORIES] exactly.
+- Literal parameters (direction, lane_type, period, condition, infrastructure,
+  side, in_direction, color) must use exact spellings shown in docstrings.
+- Do NOT invent function names or parameters; if no fitting function exists,
+  approximate with the closest combination or fall back to a broad category set.
+- Do NOT redefine atomic functions or write helper functions.
+- AIM for 3-7 lines for typical scenarios. Broader 1-2 line fallback is
+  EXPLICITLY ENCOURAGED when narrow chains risk empty results.
+- For has_objects_in_relative_direction / get_objects_in_relative_direction:
+  pass lateral_thresh ONLY when the prompt specifies a tight lateral constraint
+  ("in same lane", "directly to the left"). Otherwise omit it (default infinity).
+- If a chain depth exceeds 4 filter steps, reconsider — a 2-line broad fallback
+  often scores higher (HOTA-T penalizes empty predictions more than over-recall
+  for most queries).
+
+
+[COMMON CONFUSIONS — pick the right one (loose-aware)]
+- "approaching": prefer has_objects_in_relative_direction(direction='forward',
+  within_distance=30-50, NO lateral_thresh) for most cases.
+  Use heading_toward only when the target is clearly moving AND the prompt
+  emphasizes motion-based pursuit.
+
+- "stopped X":
+    "X stopped at intersection / at red light / at stop sign" (transient halt)
+      → has_velocity(X, log_dir, 0, 0.5)
+    "X parked / halted / stationary X" (persistent halt)
+      → stationary(X, log_dir)
+    BUT: if either filter risks emptying, DROP it and just use the category.
+
+- "X passing Y on the [side]" / "X overtaking Y":
+    → reverse_relationship(being_crossed_by)(Y, X, log_dir,
+                                              direction='left'|'right',
+                                              in_direction='either')
+  For ambiguous "passing", consider the ego-subject fallback if Y = ego.
+
+- "X ahead of ego" / "X near ego" — see SUBJECT KEYING above. When unsure,
+  prefer the ego-only fallback over a narrow directional chain.
+
+- "group of N X" / "multiple X":
+    → group_of(X, X, log_dir, min_objects=N)
+    If group_of empties, fall back to min_number=N-1 in directional lookup,
+    or to the bare category.
+
+- "between two X" / "between Y and Z":
+    → between_two_objects(subject, Y, Z, log_dir)
+    BUT this atom is fragile (see Rule 3 — DROP TRANSIENT ACTION ATOMS).
+    Consider near_objects(subject, anchors, min_objects=2) as a looser alternative.
+
+
+[BEFORE WRITING CODE — internal checklist]
+Silently verify (do not output the checklist):
+  1. Subject (referred object) → base category. Apply CATEGORY EXPANSION (Rule 2).
+  2. List ONLY conditions explicitly stated by the description.
+     If the description doesn't say "moving", don't add a motion filter.
+  3. For each action atom (braking, between, following, ...), check the description
+     for the EXACT trigger word. If absent, DROP that atom (Rule 3).
+  4. For directional filters, OMIT lateral_thresh by default (Rule 1).
+  5. Could your chain empty? If yes, prepare a 1-line broad fallback (Rule 4).
+  6. Single output_scenario(...) call at the end.
+
+
+[LAYER ROLES — Selector reference only]
+The Selector groups atoms by role for clarity. The Coder is FREE to chain
+them in any order that fits the prompt — there is no requirement to bind
+one variable per layer, to apply atoms in L1->L4 sequence, or to use
+specific variable names.
+
+  - L1 Context  : scene-level (infra / weather / map / lane geometry)
+  - L2 Actor    : identity / role / activity-state of the subject
+  - L3 Behavior : single-actor kinematics / action
+  - L4 Relation : multi-actor spatial / temporal relationship
+
+Recommendations (not hard rules):
+- If the prompt names a category, start with get_objects_of_category or
+  is_category. For EGO-subject prompts, start directly with EGO_VEHICLE.
+- `heading_toward`, `facing_toward`, `heading_in_relative_direction_to` belong
+  to L4 (they consume a related-candidates argument), even when the natural-
+  language phrase is verb-shaped ("approaching ego").
+- The Selector's mis-placement of an atom into the wrong layer is silently
+  re-routed by the runtime per LAYER_OF, so soft mis-placement does not break
+  the pipeline.
+- The last atom-binding variable is conventionally named `referred` so the
+  final `output_scenario(referred, ...)` reads clearly. Other variable names
+  are freeform (`vehicles`, `peds_at_crossing`, `moving_buses`, etc.).
+
+
+[PARAMETRIC ATOM CATALOG]
+Several atoms accept a string `parameter` that must be drawn from a fixed set
+of valid literals — picking the wrong literal silently returns an empty set.
+Always quote one of the values below.
+
+near_infrastructure(infrastructure=) — 22 valid labels:
+  brick_street, bridge, broken_traffic_light, bus_stop, construction_zone,
+  fence, filled_pothole, gas_station, green_light, infra, parking_lot,
+  pothole, railroad_tracks, red_painted_lane, road_damage, roundabout,
+  school_zone, shadow_of_building, speed_limit_zone, storm_grate,
+  streetcar_tracks, yellow_light
+  Phrase mapping hints (paraphrase -> label):
+    "curb"/"sidewalk edge" -> NOT a near_infrastructure label; treat as
+      descriptive or use on_road negation. (A separate `on_median` atom
+      exists for the road median itself.)
+    "yellow line"/"double yellow line" -> red_painted_lane is NOT the same;
+      no direct atom — drop or treat as descriptive.
+    "school zone" -> school_zone
+    "rail tracks"/"train tracks" -> railroad_tracks (or streetcar_tracks)
+    "potholes" / "filled potholes" -> pothole / filled_pothole
+    "rotary"/"traffic circle" -> roundabout
+    "gas station"/"service station" -> gas_station
+    "speed limit zone" -> speed_limit_zone
+    "narrow road"/"one-way road" -> NOT near_infrastructure labels — use
+      on_road_with_n_lanes(one_way=True, ...) or drop as descriptive.
+
+is_weather(condition=)   ∈ {rain, snow, clear, cloudy}
+is_time_of_day(period=)  ∈ {daylight, dusk_or_dawn}
+on_lane_type(lane_type=) — common values: VEHICLE, BUS, BIKE
+in_turn_lane(side=)      ∈ {left, right, None}
+turning(direction=)      ∈ {left, right, None}
+changing_lanes(direction=) ∈ {left, right, None}
+[color]                  — there is NO color atom. Put the color
+                            INTO the get_visual_actor description, e.g.
+                            "white van" -> get_visual_actor(vehicles, 'a white van'),
+                            "red car"   -> get_visual_actor(vehicles, 'a red car').
+
+[NEW ATOMS — explicit usage]
+on_median(track, log_dir)
+  -> Object physically ON the road median / center divider / traffic island.
+     Use for "X on the median", "X stopped on median". Do NOT confuse with
+     near_infrastructure (no 'median' label there — this is a separate atom).
+
+on_road_with_n_lanes(track, log_dir, n_lanes=None, lane_scope='same_direction',
+                     one_way=False, lane_types=('VEHICLE','BUS'))
+  -> Road-structure filter. Use for:
+     "one-way road" -> on_road_with_n_lanes(track, log_dir, one_way=True)
+     "single lane road" -> on_road_with_n_lanes(track, log_dir, n_lanes=1)
+     "two-lane road" -> on_road_with_n_lanes(track, log_dir, n_lanes=2)
+     "wide road"/"multi-lane road" -> n_lanes>=3 (multiple calls + scenario_or
+     if a range is needed).
+
+get_visual_actor(track, log_dir, description=<phrase>)            [L2 actor]
+  -> VLM (Qwen) on the actor's best crop. Identify an actor by what it visually
+     IS, for named subtypes that have NO dedicated AV2 category. Use as L2 actor
+     refinement after a BROAD gather (the tracker mislabels subtypes under coarse
+     classes, so do not trust the obvious class). Examples:
+       "school bus" already has SCHOOL_BUS category — use that, NOT this atom.
+       "police car" / "ambulance" / "fire truck" / "cement mixer" / "food truck"
+       / "forklift" / "yellow taxi" / "construction worker" / "child"
+         -> get_visual_actor(parents, log_dir, description=<original phrase>).
+     GATHER BROADLY, do NOT guess a narrow class (the tracker mislabels
+     subtypes). vehicle-type -> scenario_or(get_objects_of_category('VEHICLE'),
+     get_objects_of_category('WHEELED_DEVICE'))  [WHEELED_DEVICE adds forklift/
+     UTV/excavator, which 'VEHICLE' misses]. person-type or unsure ->
+     get_objects_of_category('ANY') (no PERSON superclass; the VLM drops the rest).
+
+  EXCEPTION — well-tracked subtype "autonomous vehicle":
+     The "autonomous vehicle" subtype is already classified as REGULAR_VEHICLE
+     by the AV2 tracker. Use a NARROW gather (REGULAR_VEHICLE) + get_visual_actor
+     refinement; a broad scenario_or over VEHICLE + WHEELED_DEVICE makes the VLM
+     filter noisy (miskeys actors across categories).
+     DO NOT generalize this rule to police / ambulance / forklift / food truck /
+     construction worker / child — those subtypes still benefit from the broad
+     gather above.
+
+get_visual_behavior(track, log_dir, description=<phrase>)         [L3 behavior]
+  -> VLM (Qwen) on the actor's best crop. Filter by a VISIBLE behavior /
+     appearance / static state confirmable from ONE still frame, AFTER you have
+     the actor set. Examples:
+       "person exiting a vehicle" / "person on a ladder" / "person pushing a
+       shopping cart" / "car covered by a tarp" / "vehicle carrying a bicycle"
+         -> get_visual_behavior(actors, log_dir, description=<original phrase>).
+     Do NOT use for motion ("turning"/"braking"/"merging"/"flashing lights" ->
+     motion atomics), tiny cues ("turn signal on"/"turned wheels" -> geometry
+     atomics), or surroundings ("under a canopy" -> context atomics).
+
+  HARD GUARD — SCENE / CAMERA / SENSOR-LEVEL artifact (lens dirt, sensor
+     degradation, image quality, weather effect on the lens, lighting, glare,
+     reflection, frame-wide occlusion, "camera experiencing X"):
+     DO NOT call get_visual_behavior on ego (or any actor) for these prompts.
+     The actor-crop VLM cannot perceive scene-level / camera-level state. The
+     correct mapping is the ego fallback:
+         ego = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+         referred = ego
+         output_scenario(referred, description, log_dir, output_dir)
+     This guard overrides the helper-augmentation defaults — even if the
+     Selector list includes get_visual_behavior or other relational helpers,
+     do NOT compose a chain for scene/camera-level prompts; emit the bare
+     ego fallback instead.
+
+nth_object_in_direction(track, log_dir, direction='forward', n=1, view_point=ego)
+  -> The n-th nearest object in a directional region from view_point. Replaces
+     repeated has_/get_objects_in_relative_direction chains when the prompt
+     says "second/third X ahead/behind" or "N cars ahead". Examples:
+       "vehicle two cars ahead is braking" -> n=2 with direction='forward',
+          view_point=ego.
+       "second in line at red light" -> n=2 forward from ego.
+     CAUTION: empirical eval on val showed nth_object_in_direction returned
+     zero-HOTA on most "two cars/vehicles ahead/behind" cases — output keying
+     appears to mismatch GT track-keying. PREFER the chained-call alternative
+     (get_objects_in_relative_direction twice with min_number=1, max_number=1)
+     for those patterns. Reserve nth_object_in_direction for clearly N>2 or
+     non-ego view_point cases.
+
+
+[ADDITIONAL ATOM-MISMATCH RULES — derived from val zero-HOTA analysis]
+Drop or rephrase these surface forms; they produce empty / mis-keyed sets:
+
+- TRAFFIC LIGHT STATE ("green light" / "yellow light" / "red light"):
+  DROP from essential_filters entirely unless the prompt is SOLELY about the
+  light state (rare). No atom encodes the light's state cleanly; the
+  near_intersection / near_infrastructure proxies hurt more than help.
+
+- U-TURN: there is NO u-turn atom. Use turning(direction='left' or 'right')
+  + on_intersection. The arc shape is unmatched at the atom level.
+
+- "WAITING FOR X" / "STOPPING TO LET X" / "YIELDING TO X" (X = another actor):
+  DROP the waiting/let/yielding verb. Use has_velocity(subject, min=0.0,
+  max=0.5) + has_objects_in_relative_direction(subject, X, 'forward', ...).
+  DO NOT use waiting_to_turn() unless the prompt explicitly contains "turn"
+  AND "wait/yield" in the same clause.
+
+- "X PASSING Y" / "X OVERTAKING Y" (subject = X):
+  Use reverse_relationship(being_crossed_by)(Y, X, ...) with appropriate
+  direction kwarg. being_overtaken(X, Y) returns the FIRST arg (X) but the
+  cross-event is keyed by the wrong actor for the val GT — broader fallback
+  (active + near_objects) often scores better than the strict atom.
+
+- "PEDESTRIAN CROSSING IN FRONT OF Y" / "PED CROSSING AHEAD OF Y"
+  (subject = pedestrian):
+  reverse_relationship(being_crossed_by)(Y, peds) OR
+  get_objects_in_relative_direction(Y, peds, 'forward', ...).
+  Both return ped-keyed output, matching the prompt's subject.
+
+- "CHANGING LANES AHEAD/LEFT/RIGHT" (subject = vehicle X):
+  changing_lanes(X) alone is too strict on val GT for these prompts (multiple
+  zero-HOTA cases). When confidence is medium/low, FALL BACK to:
+    is_category(X) + has_objects_in_relative_direction(ego, X, '<direction>')
+  i.e. just place the subject in the directional zone without enforcing the
+  lane-change kinematic.
+
+- "STOP SIGN ATTACHED TO X" / "STOP SIGN BEHIND X": SIGN is its own category
+  but the spatial-attachment relation has no direct atom. Use scenario_or +
+  near_objects of SIGN and X with very small distance.
+
+
+[NEW MAPPING RULES — from v2 95 lost-to-single classes (v3)]
+These six patterns recurrently misfired in v2 with no atom mapping. Apply each
+ONLY when the prompt clearly matches the trigger phrase below.
+
+UNLOAD/LOAD — trigger: "X unloading Y" / "X loading Y" (NOT "getting off" — that has its
+own active-motion mapping; see GETTING-OFF / EXITING below):
+  No verb atom exists. Map to stationary subject near the other actor:
+    stationary_X = stationary(X, log_dir)
+    near_Y       = near_objects(stationary_X, Y, log_dir,
+                                distance_thresh=5, min_objects=1)
+  Add `on_road(...)` only if the prompt explicitly says "in the road"/"in driving lane".
+  e.g. "person unloading truck in driving lane":
+    peds   = get_objects_of_category(log_dir, category='PEDESTRIAN')
+    trucks = scenario_or([
+        get_objects_of_category(log_dir, category='TRUCK'),
+        get_objects_of_category(log_dir, category='BOX_TRUCK'),
+        get_objects_of_category(log_dir, category='TRUCK_CAB'),
+    ])
+    stationary_peds = stationary(peds, log_dir)
+    near_truck      = near_objects(stationary_peds, trucks, log_dir, distance_thresh=5)
+    referred        = on_road(near_truck, log_dir)
+    output_scenario(referred, description, log_dir, output_dir)
+
+ACROSS THE INTERSECTION FROM Y — trigger: "X across the intersection from Y":
+  No "across" atom. Map to BOTH on intersection AND opposite side of road:
+    X_on_int = on_intersection(X, log_dir)
+    referred = on_relative_side_of_road(X_on_int, Y, log_dir, side='opposite')
+  e.g. "bus across the intersection from ego vehicle":
+    buses = get_objects_of_category(log_dir, category='BUS')
+    ego   = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+    buses_on_int = on_intersection(buses, log_dir)
+    referred     = on_relative_side_of_road(buses_on_int, ego, log_dir, side='opposite')
+    output_scenario(referred, description, log_dir, output_dir)
+
+MULTIPLE Y TO ITS RIGHT/LEFT — trigger: "X with multiple Y to its <side>" /
+"X with N Y to its <side>":
+  ALWAYS pass min_number (N if specified, else 2) AND lateral_thresh=5 to keep
+  Y inside X's side band (without lateral_thresh the side relation over-recalls
+  to anything within the distance arc):
+    referred = has_objects_in_relative_direction(X, Y, log_dir,
+                                                  direction='<side>',
+                                                  min_number=<N or 2>,
+                                                  within_distance=15,
+                                                  lateral_thresh=5)
+  e.g. "box truck with multiple construction cones to its right":
+    trucks = get_objects_of_category(log_dir, category='BOX_TRUCK')
+    cones  = get_objects_of_category(log_dir, category='CONSTRUCTION_CONE')
+    referred = has_objects_in_relative_direction(trucks, cones, log_dir,
+                                                  direction='right',
+                                                  min_number=2,
+                                                  within_distance=15,
+                                                  lateral_thresh=5)
+    output_scenario(referred, description, log_dir, output_dir)
+
+BOTH SIDES — trigger: "X with Y on both sides" / "X flanked by Y":
+  AND of left + right has_objects_in_relative_direction. NOT
+  between_two_objects (which is too strict for "both sides" wording):
+    with_left  = has_objects_in_relative_direction(X, Y, log_dir,
+                                                    direction='left',
+                                                    within_distance=5)
+    with_right = has_objects_in_relative_direction(X, Y, log_dir,
+                                                    direction='right',
+                                                    within_distance=5)
+    referred = scenario_and([with_left, with_right])
+  e.g. "ego vehicle with vehicles on both sides":
+    ego      = get_objects_of_category(log_dir, category='EGO_VEHICLE')
+    vehicles = get_objects_of_category(log_dir, category='VEHICLE')
+    with_left  = has_objects_in_relative_direction(ego, vehicles, log_dir, direction='left',  within_distance=5)
+    with_right = has_objects_in_relative_direction(ego, vehicles, log_dir, direction='right', within_distance=5)
+    referred = scenario_and([with_left, with_right])
+    output_scenario(referred, description, log_dir, output_dir)
+
+BIKE-LANE CONSTRAINTS — trigger: "X in bike lane" / "moving X in bike lane":
+  Always include on_lane_type(BIKE). For bicycle / bicyclist, expand the
+  category cluster via scenario_or:
+    bikes = scenario_or([
+        get_objects_of_category(log_dir, category='BICYCLE'),
+        get_objects_of_category(log_dir, category='BICYCLIST'),
+    ])
+    in_bike_lane = on_lane_type(bikes, log_dir, lane_type='BIKE')
+    referred = active(in_bike_lane, log_dir)
+    output_scenario(referred, description, log_dir, output_dir)
+
+TRAILER + LANE-POSITION COMPOUND — trigger: "X with trailer making turn from
+<rightmost / leftmost> lane":
+  No atom for "rightmost lane" — DROP that phrase. Keep trailer + turn:
+    trucks  = scenario_or([
+        get_objects_of_category(log_dir, category='TRUCK'),
+        get_objects_of_category(log_dir, category='BOX_TRUCK'),
+        get_objects_of_category(log_dir, category='TRUCK_CAB'),
+    ])
+    trailers     = get_objects_of_category(log_dir, category='VEHICULAR_TRAILER')
+    with_trailer = near_objects(trucks, trailers, log_dir, distance_thresh=5)
+    referred     = turning(with_trailer, log_dir, direction='<left or right>')
+    output_scenario(referred, description, log_dir, output_dir)
+
+
+[STRUCTURE-MINED EXCEPTIONS — narrow trigger-specific rules]
+Apply each ONLY when the prompt literally matches the trigger phrase. These are
+not global rule changes; they patch specific patterns that were misfiring.
+
+1. PHYSICAL-SIGN / PHYSICAL-OBJECT PROXIMITY — trigger: "pedestrian/object near
+   BOLLARD / STOP_SIGN / CONSTRUCTION_CONE / CONSTRUCTION_BARREL":
+   Use the tracked category directly with near_objects(distance=5).
+     peds  = get_objects_of_category(log_dir, category='PEDESTRIAN')
+     signs = get_objects_of_category(log_dir, category='STOP_SIGN')
+     referred = near_objects(peds, signs, log_dir, distance_thresh=5, min_objects=1)
+   NOT near_construction_objects (its scope is CONSTRUCTION_BARREL /
+   CONSTRUCTION_CONE / SIGN — BOLLARD and STOP_SIGN are NOT in it).
+   NOT at_stop_sign (that checks lane-membership, not proximity to the sign
+   track).
+
+2. DIRECTLY LEFT / DIRECTLY RIGHT — trigger: literal "directly to the
+   left/right":
+   Tight constraint pair — pass both:
+     within_distance=10, lateral_thresh=3
+   Default omit-lateral_thresh rule (NEAREST rule) applies otherwise.
+   ("directly in front of" / "right behind" are NOT covered here — keep using
+   the existing forward/backward guidance for those.)
+
+3. COUNTED N LEFT/RIGHT OF EGO — trigger: "N <X> left/right of the ego vehicle"
+   (min_number explicit in prompt):
+   The referred is X (not ego). Use get_ (returns related set), NOT has_:
+     referred = get_objects_in_relative_direction(ego, X, log_dir,
+                                                   direction='<side>',
+                                                   min_number=N,
+                                                   within_distance=50)
+   within=50 is the recall sweet spot for adjacent-lane presence; within<30
+   under-recalls counted side relations.
+
+4. SIDE-OBJECT ADJACENCY (X with N Y on its side) — see "MULTIPLE Y TO ITS
+   RIGHT/LEFT" rule above (within=15, lateral_thresh=5, min_number=N).
+
+5. STOP BAR / STOP LINE — trigger: literal "stop bar" / "stop line":
+   Use near_intersection + velocity, not at_stop_sign:
+     stopped   = has_velocity(vehicles, log_dir, min_velocity=0.0, max_velocity=0.5)
+     referred  = near_intersection(stopped, log_dir)
+   NOT at_stop_sign (that's lane-control, different semantic). DO NOT apply
+   to "four-way stop" (use on_intersection + has_velocity) or "at stop sign"
+   (use at_stop_sign).
+
+6a. PEDS GETTING OFF BUS — trigger: literal "getting off bus" / "off the bus":
+    Active pedestrians very close to bus track. Coder MUST do near_objects FIRST,
+    then active:
+      peds_near_bus = near_objects(peds, buses, log_dir, distance_thresh=5,
+                                    min_objects=1)
+      referred       = active(peds_near_bus, log_dir)
+    Bus category wording: literal "bus" -> BUS only (no SCHOOL_BUS /
+    ARTICULATED_BUS union). Literal "school bus" -> SCHOOL_BUS; literal
+    "articulated bus" -> ARTICULATED_BUS.
+    NOT stationary — this passive interpretation selects standing pedestrians
+    instead of people moving away from the bus.
+    NOT get_visual_behavior — multi-frame action that VLM on a single crop
+    cannot reliably capture.
+    NOT has_velocity / on_intersection — over-restrict the result.
+
+6b. PEOPLE EXITING VEHICLE FROM BOTH SIDES — trigger: literal "exiting vehicle
+    from both sides" / "both sides at once":
+    Vehicle-proximity only — multi-frame multi-person event.
+      referred = near_objects(peds, vehicles, log_dir, distance_thresh=3,
+                              min_objects=1)
+    distance=3 (NOT 5). VEHICLE (NOT BUS) — keep separate from 6a.
+    near_objects is REQUIRED — do NOT drop it.
+    NOT get_visual_behavior — VLM on a single crop replaces vehicle proximity
+    entirely and the multi-frame action is not visible in one frame.
+    NOT has_velocity / on_intersection — over-restrict the result.
+    SINGLE-person exiting ("a person exiting a vehicle") still uses
+    get_visual_behavior with the narrow VLM query
+    'a single person mid-exit from a vehicle door' — single-crop visible state.
+
+7. CONSTRUCTION REROUTE — trigger: "X routed onto opposite side of road due to
+   construction":
+   on_relative_side_of_road's related arg MUST be OTHER actors, NOT X itself
+   (comparing a set to itself is meaningless):
+     ego_near_construction = near_construction_objects(ego, log_dir)
+     vehicles              = get_objects_of_category(log_dir, category='VEHICLE')
+     referred              = on_relative_side_of_road(ego_near_construction,
+                                                       vehicles, log_dir,
+                                                       side='opposite')
+
+8. CUTTING ACROSS ROAD — trigger: literal "cutting across road" /
+   "cuts across path" / "enters sidewalk":
+   Lateral cut across vehicle traffic (NOT a turn maneuver, NOT general
+   crossing). Use cut_in_front_of with subject = bike-cluster, related =
+   moving vehicles:
+     bikes           = get_objects_of_category(log_dir, category='BICYCLIST')
+     vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
+     moving_vehicles = scenario_not(stationary)(vehicles, log_dir)
+     referred        = cut_in_front_of(bikes, moving_vehicles, log_dir)
+   NOT turning(). NOT being_crossed_by (use that for general "crossing" wording).

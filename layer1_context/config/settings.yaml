@@ -1,0 +1,42 @@
+# ============================================================
+#  Context Layer vLLM Annotation Pipeline — Settings
+# ============================================================
+
+# --- Path Configurations ---
+paths:
+  output_dir: "output/context_annotations_v4"
+
+# --- VLM Model (vLLM engine) ---
+vlm:
+  model_path: "/home/ailab/AILabDataset/03_Shared_Repository/01_CheckPoint/01_huggingface/Qwen/Qwen3.5-122B-A10B-FP8"
+  tensor_parallel_size: 4
+  gpu_memory_utilization: 0.85
+  max_model_len: 24576
+  max_num_seqs: 64
+  enable_prefix_caching: true
+  trust_remote_code: true
+  mm_processor_kwargs:
+    max_pixels: 3211264   # 28*28*4096 → ~original AV2 1550×2048; ~1024 vision tokens / image
+
+# --- Inference Parameters ---
+inference:
+  max_tokens: 512
+  temperature: 0.0
+  enable_thinking: false   # Qwen3 reasoning mode off → direct JSON output
+  # batch_ts: optional. Default = whole log per call (vLLM handles batching).
+  # Set only if main process RAM is tight on long logs.
+  # batch_ts: 64
+
+# --- Dataset ---
+dataset:
+  data_dir: "data/datasets/sensor"
+  # Tracker prediction directory. VLM inference timestamps come from
+  # {tracker_dir}/{split}/{log_id}/sm_annotations.feather (2Hz).
+  tracker_dir: "output/tracker_predictions/Le3DE2E_Tracking"
+  splits:
+    - val
+  log_ids: null            # null = all logs in splits; or list specific IDs
+
+# --- Run Options ---
+dry_run: false
+verbose: false

@@ -1,0 +1,561 @@
+# selector_few_shot.txt — Selector agent few-shot examples (English; LLM input)
+# Each example: one line PROMPT + one line OUTPUT (JSON) + blank line.
+# Add new entries here whenever the Selector picks the wrong function for a case.
+# Curated from exp97 high-score / winner prompts. ~80 examples covering all 41
+# selectable functions + high-frequency compound patterns + anti-patterns.
+
+# ====================================================================
+# 1. SINGLE-FUNCTION BASE CASES (one primitive maps directly)
+# ====================================================================
+PROMPT: vehicle reversing to parallel park
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["reversing"], "layer4_relation": []}, "rationale": "single reversing primitive matches", "confidence": "high"}
+
+PROMPT: pedestrians waiting to cross the street
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "PEDESTRIAN category + stationary filter", "confidence": "high"}
+
+PROMPT: vehicle traveling over 20 meters per second
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "single velocity-threshold filter", "confidence": "high"}
+
+PROMPT: car turning right
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": []}, "rationale": "single turning primitive, direction='right'", "confidence": "high"}
+
+PROMPT: box truck changing lanes to the left
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing_lanes"], "layer4_relation": []}, "rationale": "single lane-change primitive, direction='left'", "confidence": "high"}
+
+PROMPT: vehicle braking heavily
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["braking_hard"], "layer4_relation": []}, "rationale": "strong deceleration — braking_hard, not generic braking", "confidence": "high"}
+
+PROMPT: vehicle two cars ahead is braking
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["braking"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "generic braking + chained forward relation", "confidence": "high"}
+
+PROMPT: vehicle accelerating on intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": ["accelerating"], "layer4_relation": []}, "rationale": "accel filter + intersection location", "confidence": "high"}
+
+PROMPT: passenger vehicle swerving left
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["has_lateral_acceleration"], "layer4_relation": []}, "rationale": "lateral acceleration spike captures swerving", "confidence": "high"}
+
+PROMPT: vehicle moving at crawling speed
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "velocity range (e.g. 0.5–2 m/s)", "confidence": "high"}
+
+PROMPT: vehicle following another vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["following"]}, "rationale": "single following primitive (same lane + same dir + sustained)", "confidence": "high"}
+
+# ====================================================================
+# 2. CATEGORY / WEATHER / TIME / COLOR FILTERS
+# ====================================================================
+PROMPT: ego vehicle driving during snow
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["is_weather"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "weather='snow' filter on EGO", "confidence": "high"}
+
+PROMPT: ego vehicle driving during rain
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["is_weather"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "weather='rain' filter on EGO", "confidence": "high"}
+
+PROMPT: ego vehicle driving on a clear day
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["is_weather"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "weather='clear' filter on EGO", "confidence": "high"}
+
+PROMPT: ego vehicle driving during daylight
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["is_time_of_day"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "period='daylight' filter on EGO", "confidence": "high"}
+
+PROMPT: blue car in front of green car
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["get_visual_actor"], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "color via VLM: get_visual_actor(vehicles, 'a blue car') as referred + get_visual_actor(vehicles, 'a green car') as anchor + forward relative direction", "confidence": "medium"}
+
+PROMPT: non-bus vehicle in bus lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_lane_type"], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "exclude BUS from VEHICLE + on bus lane type", "confidence": "high"}
+
+# ====================================================================
+# 3. TURNING / LANES
+# ====================================================================
+PROMPT: vehicle waiting in left turn lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["in_turn_lane"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "on turn lane + stationary", "confidence": "high"}
+
+PROMPT: vehicle waiting until it is safe to turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["waiting_to_turn"], "layer4_relation": []}, "rationale": "single waiting-to-turn primitive", "confidence": "high"}
+
+PROMPT: ego vehicle slipping into left turn lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["in_turn_lane"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "on left turn lane, EGO subject", "confidence": "high"}
+
+PROMPT: motorcyclist in front of ego vehicle in left turn lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["in_turn_lane"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "in turn lane + forward relative to ego", "confidence": "high"}
+
+PROMPT: ego vehicle pulled onto intersection to make unprotected left turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": ["waiting_to_turn"], "layer4_relation": []}, "rationale": "waiting to turn while on intersection", "confidence": "high"}
+
+PROMPT: regular vehicle turning right
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": []}, "rationale": "REGULAR_VEHICLE + turning(direction='right')", "confidence": "high"}
+
+PROMPT: bus making a turn at a stop sign
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_stop_sign"], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": []}, "rationale": "BUS + turning + stop-sign-lane membership", "confidence": "high"}
+
+PROMPT: vehicle changing lanes while in bike lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_lane_type"], "layer2_actor": [], "layer3_behavior": ["changing_lanes"], "layer4_relation": []}, "rationale": "lane change + lane_type='BIKE'", "confidence": "high"}
+
+PROMPT: left lane change while there is a vehicle to the left
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing_lanes"], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "lane change(direction=left) + vehicle in left lateral direction", "confidence": "high"}
+
+PROMPT: oncoming vehicle changing lanes
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing_lanes"], "layer4_relation": ["heading_in_relative_direction_to"]}, "rationale": "lane change subject + traveling opposite to ego", "confidence": "high"}
+
+PROMPT: box truck in the same lane as a school bus
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["in_same_lane"]}, "rationale": "same-lane relation between two categories", "confidence": "high"}
+
+PROMPT: bicycle and vehicle traveling in bike lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_lane_type"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "lane_type='BIKE' filter on both subjects", "confidence": "high"}
+
+PROMPT: bus in bus lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_lane_type"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "BUS + on bus lane", "confidence": "high"}
+
+# ====================================================================
+# 4. DIRECTION / RELATIVE MOTION
+# ====================================================================
+PROMPT: vehicle approaching stopped vehicle at intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["heading_toward"]}, "rationale": "approaching (velocity vector) + stopped anchor + intersection location", "confidence": "high"}
+
+PROMPT: vehicle approaching pedestrians waiting at a crosswalk
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["heading_toward"]}, "rationale": "approaching + stationary peds + crosswalk", "confidence": "high"}
+
+PROMPT: vehicle facing toward parked vehicles
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["facing_toward"]}, "rationale": "facing (heading-based) + parked = stationary", "confidence": "high"}
+
+PROMPT: vehicle traveling against traffic
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["heading_in_relative_direction_to"]}, "rationale": "opposite-direction relative travel", "confidence": "high"}
+
+PROMPT: vehicle on opposite side of road from ego
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["on_relative_side_of_road"]}, "rationale": "same/opposite side relation", "confidence": "high"}
+
+PROMPT: pedestrian to the left of a truck
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "pedestrian-subject + left relative direction", "confidence": "high"}
+
+PROMPT: at least 2 active vehicles within 15 meters behind ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "active subjects + backward relation with min_number + max_distance", "confidence": "high"}
+
+PROMPT: pedestrian walking alongside stopped bus
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["active", "stationary"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "moving ped + stopped bus + lateral (left/right) adjacency", "confidence": "medium"}
+
+# ====================================================================
+# 5. CROSSING / OVERTAKING / CUT-IN
+# ====================================================================
+PROMPT: vehicle being crossed by a pedestrian
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_crossed_by"]}, "rationale": "perpendicular cross relation, subject = vehicle", "confidence": "high"}
+
+PROMPT: the vehicle behind another vehicle being crossed by a jaywalking pedestrian
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_crossed_by", "get_objects_in_relative_direction"]}, "rationale": "vehicle crossed by ped + behind another vehicle (forward chain)", "confidence": "medium"}
+
+PROMPT: pedestrian crossing ahead of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "ped at crosswalk + ahead of ego", "confidence": "high"}
+
+PROMPT: ego vehicle following vehicle being overtaken on right
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_overtaken"]}, "rationale": "REFERRED=ego, special exact wording — no following() filter", "confidence": "high"}
+
+PROMPT: ego vehicle following vehicle that is being overtaken on the right
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_overtaken", "has_objects_in_relative_direction"]}, "rationale": "'that is' wording — vehicle is REFERRED, ego-follow as filter", "confidence": "high"}
+
+PROMPT: vehicles being passed by a motorcycle on either side
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_overtaken"]}, "rationale": "both left and right passes — being_overtaken twice via scenario_or", "confidence": "high"}
+
+PROMPT: ego vehicle in middle lane getting passed on both sides
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_overtaken"]}, "rationale": "ego REFERRED, passed on both sides", "confidence": "high"}
+
+PROMPT: vehicle cutting in front of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["cut_in_front_of"]}, "rationale": "cut-in dynamics, not pure lane change", "confidence": "high"}
+
+PROMPT: vehicle changing lanes to the right
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing_lanes"], "layer4_relation": []}, "rationale": "plain lane change; NOT cut_in_front_of", "confidence": "high"}
+
+PROMPT: vehicle cutting across lanes in front of ego vehicle to make a turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": ["cut_in_front_of"]}, "rationale": "cut-in + turning compound", "confidence": "high"}
+
+PROMPT: vehicle ahead of ego vehicle has its reverse lights on
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["reversing"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "reversing vehicle + forward relative to ego", "confidence": "high"}
+
+# ====================================================================
+# 6. PROXIMITY / CLUSTERING / BETWEEN
+# ====================================================================
+PROMPT: vehicle near message board trailer
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "proximity to MESSAGE_BOARD_TRAILER", "confidence": "high"}
+
+PROMPT: vehicle within 10 meters of a bicycle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "explicit distance threshold", "confidence": "high"}
+
+PROMPT: dog near pedestrian
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "DOG + PEDESTRIAN proximity", "confidence": "high"}
+
+PROMPT: pedestrian near stop sign
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "PEDESTRIAN + STOP_SIGN proximity — at_stop_sign is for lane membership, not distance", "confidence": "high"}
+
+PROMPT: box truck near at least 3 construction cones
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "cross-category proximity with min_objects=3 — NOT group_of", "confidence": "high"}
+
+PROMPT: group of three pedestrians crossing
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["group_of"]}, "rationale": "group_of(min_objects=3) + crosswalk location", "confidence": "high"}
+
+PROMPT: a continuous stream of cyclists
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["group_of"]}, "rationale": "BICYCLIST cluster (group_of, larger min_objects)", "confidence": "high"}
+
+PROMPT: multiple bicycles ahead of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "ego-relative direction + min_number; NOT group_of (group_of has no direction)", "confidence": "high"}
+
+PROMPT: two delivery trucks left of the ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "get_objects_in_relative_direction(ego, scenario_or([TRUCK, BOX_TRUCK]), direction='left', min_number=2, within_distance=50). referred MUST be trucks (NOT ego) — use get_ not has_. DO NOT within<30 (counted side relation under-recalls)", "confidence": "high"}
+
+PROMPT: vehicle in construction zone
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_construction_objects"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "construction-zone primitive", "confidence": "high"}
+
+PROMPT: ego vehicle navigating intersection with construction on all four sides
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_construction_objects", "on_intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "construction proximity + on intersection", "confidence": "high"}
+
+PROMPT: pedestrian walking between construction barriers with approaching vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["between_two_objects", "heading_toward"]}, "rationale": "between barriers + approaching vehicle compound", "confidence": "medium"}
+
+PROMPT: motorcycle between two vehicles
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["between_two_objects"]}, "rationale": "symmetric between, same-category anchor", "confidence": "high"}
+
+PROMPT: pedestrian crossing between bollards
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["between_two_objects"]}, "rationale": "between bollards + crosswalk filter on subject", "confidence": "high"}
+
+# ====================================================================
+# 7. MAP FEATURES (road / intersection / crosswalk / stop sign / infra)
+# ====================================================================
+PROMPT: ego vehicle stopped at intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "stationary + on intersection", "confidence": "high"}
+
+PROMPT: bicycle on intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "BICYCLE category + on intersection", "confidence": "high"}
+
+PROMPT: vehicle near an intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "within distance threshold of intersection", "confidence": "high"}
+
+PROMPT: vehicle at a stop sign
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_stop_sign"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "in a stop-sign-controlled lane (membership, not distance)", "confidence": "high"}
+
+PROMPT: vehicle stopped at stop sign
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_stop_sign"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "stationary + stop sign lane", "confidence": "high"}
+
+PROMPT: ego vehicle on bridge
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_infrastructure"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "infrastructure='bridge'", "confidence": "high"}
+
+PROMPT: vehicle in parking lot
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_infrastructure"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "infrastructure='parking_lot' — or in_drivable_area without on_road", "confidence": "medium"}
+
+PROMPT: vehicle sitting on the median
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_median"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "on_median (NOT near_infrastructure — median is a separate atom) + stationary", "confidence": "high"}
+
+PROMPT: vehicle on road
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_road"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "road or bike lane (excludes parking lots)", "confidence": "high"}
+
+PROMPT: vehicle going over curb during a turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["in_drivable_area"], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": []}, "rationale": "in drivable area (includes off-road shoulder) + turning event", "confidence": "medium"}
+
+PROMPT: vehicle within front camera view
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["within_camera_view"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "camera-view filter", "confidence": "high"}
+
+# ====================================================================
+# 8. COMPOUND / MULTI-CONSTRAINT
+# ====================================================================
+PROMPT: vehicles waiting at traffic light
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["group_of"]}, "rationale": "stationary cluster of vehicles near intersection (proxy for traffic light)", "confidence": "medium"}
+
+PROMPT: ego vehicle passing vehicles in a slower lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_overtaken"]}, "rationale": "ego overtakes slower vehicles — use reverse_relationship(being_overtaken)", "confidence": "high"}
+
+PROMPT: vehicle approaching ego vehicle during unprotected left turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": ["heading_toward"]}, "rationale": "approaching + turning + on intersection", "confidence": "medium"}
+
+PROMPT: ego vehicle reversing out of an intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": ["reversing"], "layer4_relation": []}, "rationale": "reversing while on intersection, EGO subject", "confidence": "high"}
+
+PROMPT: ego vehicle following another vehicle through a right turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": ["following"]}, "rationale": "following + turning compound", "confidence": "high"}
+
+PROMPT: ego vehicle camera experiencing non-environmental degradation
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["get_visual_behavior"], "layer4_relation": []}, "rationale": "scene/camera-level artifact — actor-crop VLM cannot see scene state. Coder MUST follow CORRECT (ego fallback) per shared_guide VLM scope guard; do NOT call get_visual_behavior on ego", "confidence": "low"}
+
+PROMPT: another autonomous vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "get_visual_actor"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "well-tracked subtype — narrow REGULAR_VEHICLE + get_visual_actor (NOT broad scenario_or([VEHICLE, WHEELED_DEVICE]) — makes the VLM filter noisy)", "confidence": "high"}
+
+PROMPT: vehicle traveling through a parking lot
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_infrastructure", "on_road"], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "near_infrastructure(parking_lot) + scenario_not(on_road) + has_velocity, all applied to near_parking via scenario_and (NOT a single active(near_parking))", "confidence": "high"}
+
+PROMPT: pedestrians over 30 meters away
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "peds-keyed scenario_not(near_objects)(peds, ego, distance_thresh=30). Coder MUST keep peds as subject (NOT ego-keyed relation)", "confidence": "high"}
+
+PROMPT: ego vehicle two cars ahead of another vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "vehicles-vehicles-ego chain with lateral_thresh=3, within_distance=50. DO NOT use nth_object_in_direction (output keying mismatches GT). DO NOT chain ego-first", "confidence": "high"}
+
+PROMPT: ego vehicle merging between two regular vehicles
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing_lanes"], "layer4_relation": ["between_two_objects"]}, "rationale": "changing_lanes(ego) FIRST, then between_two_objects(ego_changing, regs, regs). DO NOT decompose to left+right has_objects_in_relative_direction AND (under-recalls)", "confidence": "high"}
+
+PROMPT: dog crossing in front of vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_road"], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "DOG only (NOT scenario_or with ANIMAL — that's for 'animal crossing' prompts) + on_road + active + forward of vehicle. Coder MUST keep on_road constraint", "confidence": "high"}
+
+PROMPT: vehicles on all sides of a four-way stop
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "simple chain: has_velocity(0, 0.5) + on_intersection. DO NOT chain 4-direction has_objects_in_relative_direction AND (empties)", "confidence": "high"}
+
+# ====================================================================
+# 9. ANTI-PATTERNS (negative / common-confusion cases)
+# ====================================================================
+PROMPT: stopped vehicle facing a turning vehicle between 5-20 meters away
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": ["turning"], "layer4_relation": ["facing_toward"]}, "rationale": "'between N-M meters' is a DISTANCE RANGE, NOT between_two_objects", "confidence": "high"}
+
+PROMPT: vehicle in front of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "simple positional 'in front of' — NOT following (no sustained/same-lane requirement here)", "confidence": "high"}
+
+PROMPT: pedestrian crossing at bollard
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "crosswalk + near a BOLLARD — NOT between_two_objects (single bollard, no sandwich)", "confidence": "high"}
+
+# ====================================================================
+# 10. REFERRED-KEY DISCRIMINATION (has_ vs get_objects_in_relative_direction)
+# ====================================================================
+# RULE: has_objects_in_relative_direction(A, B) returns A (A that has B around).
+#       get_objects_in_relative_direction(A, B) returns B (the B around A).
+# Pick the function whose RETURN is the prompt's REFERRED object.
+
+PROMPT: pedestrian to the left of a truck
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "REFERRED=PEDESTRIAN; subject=truck, return peds (get_obj_in_dir, NOT has_obj_in_dir)", "confidence": "high"}
+
+PROMPT: vehicle turning right with pedestrian in front
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "REFERRED=VEHICLE; subject=turning vehicle, ped is constraint (has_obj_in_dir returns vehicle)", "confidence": "high"}
+
+PROMPT: vehicle behind another vehicle being crossed by a pedestrian
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being_crossed_by", "get_objects_in_relative_direction"]}, "rationale": "REFERRED=behind vehicle; chain from crossed vehicle, return the one behind (get_obj_in_dir)", "confidence": "medium"}
+
+PROMPT: vehicle two cars ahead is braking
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["braking"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "REFERRED=braking vehicle 2 ahead; chain get_obj_in_dir twice (forward) then braking filter", "confidence": "medium"}
+
+# ====================================================================
+# 11. WAITING / STOPPED / PARKED — do NOT confuse 'stationary' with 'low velocity'
+# ====================================================================
+# RULE: 'stationary' = total displacement <2m over the whole scenario (very strict).
+#       For "waiting" / "stopped at signal" / "ego waiting for X" use has_velocity(0, 0.5).
+#       Only use 'stationary' for truly parked / abandoned objects.
+
+PROMPT: ego vehicle waiting for pedestrians to cross
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "ego near-stop (has_velocity 0-0.5) with peds ahead; NOT stationary (ego moves overall)", "confidence": "high"}
+
+PROMPT: stopped vehicles at intersection being crossed by pedestrians
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": ["being_crossed_by"]}, "rationale": "momentarily stopped (low velocity), NOT stationary; on intersection; crossed by peds", "confidence": "high"}
+
+PROMPT: vehicle stopped at red light
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "low velocity near intersection (red-light proxy); NOT stationary", "confidence": "high"}
+
+PROMPT: vehicle parked perpendicular to the street
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_infrastructure"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "truly parked (stationary) + near parking_lot infrastructure heuristic", "confidence": "medium"}
+
+PROMPT: vehicle parked on the curb
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "stationary (truly parked). DROP 'curb' -> 'sidewalk' is not a supported near_infrastructure label", "confidence": "medium"}
+
+# ====================================================================
+# 12. APPROACHING — heading_toward vs has_velocity + has_obj_in_dir
+# ====================================================================
+# RULE: "X approaching Y" = X has velocity vector toward Y. Two valid encodings:
+#   (a) heading_toward(X, Y): velocity-vector based.
+#   (b) has_velocity(X, >threshold) + has_obj_in_dir(X, Y, 'forward'): geometric proxy.
+# Many anchored examples use (b); prefer (b) when the geometry is simple.
+
+PROMPT: vehicle approaching stopped delivery truck
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": ["has_velocity"], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "moving X has stopped truck ahead; geometric proxy for 'approaching'", "confidence": "high"}
+
+PROMPT: ego vehicle approaching bicyclist separated by bollards
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "chain forward: ego has bicyclists ahead AND has bollards ahead; NOT between_two_objects (no sandwich required)", "confidence": "high"}
+
+# Append new cases below whenever the Selector picks wrong functions.
+
+# ====================================================================
+# 13. COMMON CODING PATTERNS
+# ====================================================================
+# Rules of thumb that produce robust, GT-aligned predictions.
+# Strategy: pick minimal positional atoms; let category expansion and omitted
+# lateral_thresh do the rest in the Coder.
+
+# A. CATEGORY EXPANSION — keep atoms minimal; Coder expands via scenario_or
+PROMPT: delivery truck stopped at intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "category cluster: scenario_or([TRUCK, BOX_TRUCK]); avoid single-cat narrowing", "confidence": "high"}
+
+PROMPT: motorcycle at stop sign
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_stop_sign"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "category cluster: scenario_or([MOTORCYCLE, MOTORCYCLIST]); single-atom enough", "confidence": "high"}
+
+PROMPT: bus across the intersection from ego
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "category cluster: scenario_or([BUS, SCHOOL_BUS]); near_intersection > on_intersection (looser)", "confidence": "high"}
+
+# B. DROP TRANSIENT ACTION ATOMS
+#    Don't pick braking/following/between for PARAPHRASES — only for exact trigger words
+PROMPT: vehicle braking near pedestrian crossing
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "DROP braking() — too transient; geometry chain matches GT better", "confidence": "medium"}
+
+PROMPT: vehicle following behind utility vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "DROP following() — fragile; use forward positional with LARGE_VEHICLE", "confidence": "medium"}
+
+PROMPT: vehicle slowing for crosswalk
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "DROP braking — 'slowing' is paraphrase; geometric proxy", "confidence": "medium"}
+
+# C. LOOSER SPATIAL — prefer near_intersection, omit lateral_thresh
+PROMPT: vehicle stopped near intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": [], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "near_intersection(threshold=15) — NOT on_intersection (strict polygon)", "confidence": "high"}
+
+# D. SUBJECT-TO-EGO FALLBACK — for ambiguous ego-subject queries
+PROMPT: pedestrian crossing ahead of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "if directional empties, Coder falls back to ego-only (subject-keying alternative)", "confidence": "medium"}
+
+PROMPT: ego vehicle in blind spot of another vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "ambiguous subject — Coder may use ego-only fallback if positional empties", "confidence": "low"}
+
+# E. BROADER FALLBACK — low-confidence signal triggers broader Coder output
+PROMPT: truck following ego on a cloud day
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["is_weather"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["following"]}, "rationale": "if chain empties: fallback ego-only or scenario_or([TRUCK,BOX_TRUCK,TRUCK_CAB])", "confidence": "low"}
+
+PROMPT: cement mixer on the side of the road
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["get_visual_actor"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "cement mixer (rotating drum) is NOT an AV2 category -> broad vehicle gather + get_visual_actor(description='a cement mixer'). DROP 'on the side of the road' — 'sidewalk' infra is a fragile proxy that can empty the result; VLM identity is the signal (bench validated mixer via VLM alone). If precision needed, prefer stationary over near_infrastructure", "confidence": "high"}
+
+# F. DON'T PICK between_two_objects FOR PARAPHRASES
+PROMPT: pedestrian walking between construction barriers
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_construction_objects"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "rationale": "DROP between_two_objects — fragile; near_construction_objects with min=2 is looser", "confidence": "medium"}
+
+
+
+# G. ZERO-HOTA PATTERNS — derived from val analysis. Use these mappings as
+# reference for ambiguous prompts that previously scored 0.
+
+PROMPT: vehicle making a u-turn crossing in front of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["turning"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "no u-turn atom — use turning + on_intersection; ego forward keyed", "confidence": "medium"}
+
+PROMPT: vehicle making a right turn on a red light
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["turning"], "layer4_relation": []}, "rationale": "DROP 'red light' (no atom); keep turning(direction='right') + near_intersection", "confidence": "medium"}
+
+PROMPT: vehicle making an unprotected left turn during green light
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["in_turn_lane"], "layer2_actor": ["is_category"], "layer3_behavior": ["turning"], "layer4_relation": []}, "rationale": "DROP 'green light' (no atom); in_turn_lane(side='left') + turning(direction='left')", "confidence": "medium"}
+
+PROMPT: vehicle waiting for a stopped school bus
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "stationary"], "layer3_behavior": ["has_velocity"], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "DROP 'waiting' verb; subject has_velocity(0,0.5) + has SCHOOL_BUS forward", "confidence": "medium"}
+
+PROMPT: pedestrian waiting for ego vehicle to pass before crossing the street
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "stationary"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "DROP waiting/pass; ped stationary near ego (broad fallback)", "confidence": "low"}
+
+PROMPT: vehicle passing ego vehicle on nearly empty straight road
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "active"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "active vehicle subject; DROP 'passing ego' (being_overtaken keying mismatches val GT). Coder falls back to broad ego-near", "confidence": "low"}
+
+PROMPT: ego vehicle passing parked bus
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "stationary"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "subject=ego; bus is anchor (stationary, near ego); DROP 'passing' as being_overtaken is mis-keyed for ego subject", "confidence": "medium"}
+
+PROMPT: vehicle two cars ahead is braking
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": ["braking"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "PREFER chained get_objects_in_relative_direction (twice, n=1 each) over nth_object_in_direction — empirically better val keying", "confidence": "high"}
+
+PROMPT: vehicle second in line waiting at a red light
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["has_velocity"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "DROP 'red light'; chained get_objects_in_relative_direction twice (n=1 each) for 'second in line' — avoid nth_object_in_direction", "confidence": "medium"}
+
+PROMPT: box truck changing lanes to the left
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "changing_lanes alone scored 0 on val; broader fallback: BOX_TRUCK ahead of ego in left lateral position", "confidence": "low"}
+
+PROMPT: pedestrian crossing ahead of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["at_pedestrian_crossing"], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "subject=ped; ego is anchor (forward, ped-keyed via get_objects_in_relative_direction)", "confidence": "high"}
+
+PROMPT: unattended dog
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "DOG not near any PEDESTRIAN within 5m — scenario_not(near_objects). Coder handles negation", "confidence": "medium"}
+
+
+# H. REGRESSION-RECOVERY references — derived from real-LLM val regressions
+# vs single-agent baseline. Use these as anchor mappings when the prompt
+# matches the pattern below.
+
+PROMPT: school bus stuck on top of intersection due to traffic
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "'stuck due to traffic' = velocity~0 + on intersection. DO NOT add stationary (too strict — needs 3m+ displacement)", "confidence": "high"}
+
+PROMPT: ego vehicle waiting for pedestrians to cross
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": ["has_velocity"], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "ego stopped + peds forward; ALWAYS keep lateral_thresh=5. DO NOT add at_pedestrian_crossing(ego) — narrows to empty", "confidence": "high"}
+
+PROMPT: ego vehicle approaching cyclist in same lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "use has_objects_in_relative_direction(ego, cyclists, forward, lateral_thresh=3) — lateral=3 IS the same-lane test. DO NOT chain in_same_lane", "confidence": "high"}
+
+PROMPT: vehicle carrying a bicycle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": ["get_visual_behavior"], "layer4_relation": []}, "rationale": "carrying-a-bicycle is a VISIBLE state in the actor's own crop -> get_visual_behavior(vehicles, description='a vehicle carrying a bicycle'). DO NOT use near_objects (carrying != near)", "confidence": "high"}
+
+PROMPT: ego vehicle pulled onto intersection to make unprotected left turn
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["waiting_to_turn"], "layer4_relation": []}, "rationale": "use waiting_to_turn(side='left') — this is the canonical pulled-onto-intersection-to-turn pattern. NOT plain turning()", "confidence": "high"}
+
+PROMPT: pedestrian facing away from the ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["facing_toward"]}, "rationale": "use scenario_not(facing_toward)(peds, ego, within_angle=180). facing_toward checks yaw orientation; heading_in_relative_direction_to is motion-based and EMPTIES on stationary peds", "confidence": "high"}
+
+PROMPT: pedestrians getting off bus
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "active"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "exiting/getting off = active motion. NOT stationary (passive misread), NOT get_visual_behavior (multi-frame action, not single-crop). Coder: near_objects(peds, BUS, distance=5) FIRST then active(...). BUS only — literal 'bus' maps to BUS category (no SCHOOL_BUS/ARTICULATED_BUS union; if prompt explicitly says 'school bus' use SCHOOL_BUS). Do not add has_velocity / on_intersection helpers (over-restrict)", "confidence": "high"}
+
+
+# I. RECOVERABLE ZEROS — v2 scored 0 but other systems ≥0.3. Anchor mappings
+# distilled from the best-performing baseline (single / sim / triple).
+
+PROMPT: vehicle making a u-turn crossing in front of ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["turning"], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "no u-turn atom — turning(direction='left' or 'right') + on_intersection + ego forward direction. triple-agent best at 0.878", "confidence": "high"}
+
+PROMPT: ego vehicle traveling through a yellow light
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_infrastructure"], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "near_infrastructure(infrastructure='yellow_light'). triple-agent best at 0.583", "confidence": "high"}
+
+PROMPT: vehicle parked perpendicular to the street
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_infrastructure"], "layer2_actor": ["is_category", "stationary"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "stationary + near_infrastructure(parking_lot). DROP 'perpendicular' (no angle atom). sim best at 0.703", "confidence": "medium"}
+
+PROMPT: vehicle stopped in front of stop bar
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["has_velocity"], "layer4_relation": []}, "rationale": "VEHICLE + has_velocity(0,0.5) stopped + near_intersection. 'stop bar' = stop line at intersection entry, NOT at_stop_sign (lane-membership atom). DO NOT apply to 'four-way stop' or 'at stop sign' (those use on_intersection / at_stop_sign respectively)", "confidence": "high"}
+
+PROMPT: person on a ladder
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": ["get_visual_behavior"], "layer4_relation": []}, "rationale": "on-a-ladder is a VISIBLE state in the PED's own crop -> is_category(PEDESTRIAN) + get_visual_behavior(description='a person on a ladder')", "confidence": "medium"}
+
+PROMPT: forklift unloading vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["get_visual_actor"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "forklift is NOT an AV2 category -> broad vehicle+WHEELED_DEVICE gather + get_visual_actor(description='a forklift') + near_objects(vehicles) for 'unloading'. DROP stationary — an unloading forklift moves (>2m), so strict stationary would empty the result", "confidence": "high"}
+
+PROMPT: person unloading truck in driving lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_road"], "layer2_actor": ["is_category", "stationary"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "stationary PED on_road + near_objects(trucks). triple-agent best at 0.840", "confidence": "high"}
+
+PROMPT: bus across the intersection from the ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["on_relative_side_of_road"]}, "rationale": "buses on_intersection AND opposite side of road from ego. single best at 0.500", "confidence": "medium"}
+
+PROMPT: vehicle braking near jaywalking pedestrian or stroller
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_road"], "layer2_actor": ["is_category"], "layer3_behavior": ["braking"], "layer4_relation": ["near_objects"]}, "rationale": "jaywalking peds (on_road, not at_pedestrian_crossing) + braking vehicle nearby. triple at 0.499", "confidence": "medium"}
+
+PROMPT: motorcyclist braking hard
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "low conf -> broad scenario_or([MOTORCYCLIST, MOTORCYCLE]) fallback (NOT braking_hard — empty in val). sim best at 0.502", "confidence": "low"}
+
+PROMPT: ego vehicle passing vehicles in a slower lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "broad ego_only fallback (NO being_overtaken — keying mismatches with ego subject). single best at 0.489", "confidence": "low"}
+
+PROMPT: box truck with multiple construction cones to its right
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "has_objects_in_relative_direction(box_trucks, CONSTRUCTION_CONE, direction='right', min_number=2, within_distance=15, lateral_thresh=5). Side-object adjacency needs lateral_thresh=5 to keep cones in the truck's side band; within=10 (no lateral) under-recalls", "confidence": "high"}
+
+PROMPT: truck with an object extending far outside of its bed
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": ["get_visual_behavior"], "layer4_relation": []}, "rationale": "object-extending-outside-bed is a VISIBLE appearance in the truck's crop -> is_category(TRUCK/BOX_TRUCK/TRUCK_CAB) + get_visual_behavior(description='a truck with an object extending far outside its bed')", "confidence": "medium"}
+
+PROMPT: two vehicles making a complete stop to avoid colliding with each other at an intersection
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_intersection"], "layer2_actor": ["is_category"], "layer3_behavior": ["has_velocity"], "layer4_relation": ["near_objects"]}, "rationale": "stopped vehicles on intersection + near each other. sim at 0.311", "confidence": "medium"}
+
+
+# J. LOST-95 categories — paraphrase mapping anchors derived from v2's
+# 95 classes-lost-to-single analysis. Each captures one of the 6 top failure
+# patterns identified in v2.
+
+PROMPT: semi with trailer making left turn from the rightmost lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": ["turning"], "layer4_relation": ["near_objects"]}, "rationale": "scenario_or([TRUCK, TRUCK_CAB]) + turning(direction='left') + near_objects(VEHICULAR_TRAILER, distance_thresh=5). DROP 'rightmost lane' (no lane-position atom). single best at 0.598", "confidence": "medium"}
+
+PROMPT: pedestrian between moving vehicles on both sides
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "both-sides = AND of left + right has_objects_in_relative_direction(peds, moving_vehicles). NOT between_two_objects (too strict). single best at 0.606", "confidence": "high"}
+
+PROMPT: bicycle and vehicle traveling in bike lane
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["on_lane_type"], "layer2_actor": ["is_category", "active"], "layer3_behavior": [], "layer4_relation": []}, "rationale": "always include on_lane_type(BIKE) + scenario_or([BICYCLE, BICYCLIST, VEHICLE]) + active. single best at 0.831", "confidence": "high"}
+
+PROMPT: ego vehicle with vehicles on both sides
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "AND of has_objects_in_relative_direction(ego, vehicles, 'left') and ('right'). single best at 0.928", "confidence": "high"}
+
+PROMPT: car with a stroller to its left
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["has_objects_in_relative_direction"]}, "rationale": "has_objects_in_relative_direction(car, stroller, direction='left', within_distance=5). DO NOT add lateral_thresh. single best at 0.676", "confidence": "high"}
+
+PROMPT: moving bicycle directly to the left of the ego vehicle
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category", "active"], "layer3_behavior": [], "layer4_relation": ["get_objects_in_relative_direction"]}, "rationale": "get_objects_in_relative_direction(ego, bicycles, direction='left', lateral_thresh=2 for 'directly'). 'directly' = tight lateral. single best at 0.439", "confidence": "high"}
+
+# ====================================================================
+# L. STRUCTURE-MINED ANCHORS — semantic patterns from archive analysis,
+#    each with narrow trigger phrase to avoid spillover. No metric labels.
+# ====================================================================
+PROMPT: ego vehicle routed onto opposite side of the road due to construction
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": ["near_construction_objects"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["on_relative_side_of_road"]}, "rationale": "ego near construction + opposite side relative to OTHER vehicles (NOT ego vs ego — comparing a set to itself is meaningless). related arg in on_relative_side_of_road MUST be a different actor set: get_objects_of_category(VEHICLE)", "confidence": "high"}
+
+PROMPT: pedestrian near bollard
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "PEDESTRIAN + near_objects(peds, BOLLARD, distance=5). BOLLARD is a tracked AV2 category — use it directly. DO NOT use near_construction_objects (its scope is CONSTRUCTION_BARREL / CONSTRUCTION_CONE / SIGN only — BOLLARD is NOT included)", "confidence": "high"}
+
+PROMPT: Bicyclist cutting across road to enter a sidewalk
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["cut_in_front_of"]}, "rationale": "BICYCLIST + cut_in_front_of(bicyclists, scenario_not(stationary)(VEHICLE)). Trigger: literal 'cutting across road / cuts across path / enters sidewalk'. NOT general 'crossing' (use being_crossed_by). NOT turning() — the action is lateral cut across vehicle traffic, not a turn maneuver", "confidence": "high"}
+
+PROMPT: people exiting a vehicle from both sides at once
+OUTPUT: {"selected_funcs_by_layer": {"layer1_context": [], "layer2_actor": ["is_category"], "layer3_behavior": [], "layer4_relation": ["near_objects"]}, "rationale": "PEDESTRIAN + near_objects(peds, VEHICLE, distance=3) only. near_objects is the REQUIRED relation (do NOT drop it). NOT get_visual_behavior — multi-frame action that VLM on a single crop misses, and the VLM call replaces vehicle proximity entirely. NOT has_velocity / on_intersection (over-restrict). distance=3 (NOT 5), VEHICLE (NOT BUS) — keep separate from getting-off-bus pattern", "confidence": "high"}

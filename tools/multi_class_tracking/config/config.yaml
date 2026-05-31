@@ -1,0 +1,241 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Multi-class Tracking config — Le3DE2E detection input, ID switching re-tracking.
+# Usage/structure: tools/multi_class_tracking/README.md
+# Sections: [IO] → tracking(motion_model / 4D CV / imm / association / lifecycle)
+#       → post_processing(yaw flip resolution·static·jitter·IoU·stop_sign)
+# Most post_processing·association values can be live-validated via server.py "Tracking Tuning".
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── [IO] input/output ────────────────────────────────────────────────
+split: val
+log_id: 0b5142c1-420b-3fea-9e98-b87327ae22c6
+src_tracker: Le3DE2E_Tracking_ego_yawfix_sf_ts40_tm20_thr005
+# dst_tracker: null   # if null, <src_tracker>_retrack
+dst_tracker: Le3DE2E_Tracking_ego_yawfix2_track6
+
+tracking:
+  # ─────────────────────────────────────────────────────────────────────
+  # Motion model — 'cv' (single 4D CV) or 'imm' (4-sub-filter IMM).
+  # imm applies to vehicle/two_wheeler/pedestrian. static always uses 4D CV.
+  # ─────────────────────────────────────────────────────────────────────
+  motion_model: imm
+
+  # ===================================================================
+  # [4D CV KF params]  static classes (SIGN/BOLLARD/CONE, etc.) always use 4D CV →
+  # Q/R/P0 are read by that CV KF (applied to static objects even in IMM mode, always created).
+  # ===================================================================
+
+  # 4D KF: state=[x,y,vx,vy], measurement=[x,y]. units m, m/s.
+  Q:  {x: 0.07, y: 0.07, vx: 0.35, vy: 0.35}    # process noise σ²
+  R:  {x: 0.15, y: 0.15}                         # measurement noise σ²
+  P0: {x: 1.0,  y: 1.0,  vx: 100.0, vy: 100.0}   # initial cov diag
+
+  # heading-direction anisotropic Q — applied to both CV KF (static) + IMM sub-filters.
+  direction_skew:
+    enabled: true
+    lon_pose_factor: 1.2       # pos heading-axis factor
+    lon_velocity_factor: 1.2   # vel heading-axis factor
+
+  # at first init, P0 anisotropic from detection yaw — common to CV KF + IMM.
+  init_cov_yaw_aligned:
+    enabled: true
+    long_factor: 1.7    # heading-axis variance = P0_diag · long_factor
+    lat_factor: 0.01    # lateral-axis variance = P0_diag · lat_factor
+
+  # ===================================================================
+  # [IMM mode params]  used when motion_model='imm'. Ignored in cv mode.
+  # ===================================================================
+  # Group (vehicle/two_wheeler/pedestrian) distinction is via mu/M only. Q/R/P0 are common across models.
+  # sub-filter (row/column order of mu/M): [CV, CA, CTRV, CTRA].
+  # State dim: CV(5D) CA(7D) CTRV(5D) CTRA(6D). Measurement (3D): [x, y, yaw].
+  # Each model uses only the params for its own state (missing keys use code defaults):
+  #   q_xy/r_xy : all models | q_v : all models | q_a : CA,CTRA | q_yaw : all models
+  #   q_yaw_rate : CTRV,CTRA | r_yaw : all models | p0_* : initial cov diag
+  imm:
+    save_debug: true   # emit imm_debug.feather + the imm section of tracking_summary.json
+
+    # per-group IMM mode prior (sum=1).
+    mu_by_group:
+      vehicle:     [0.04, 0.04, 0.12, 0.80]
+      two_wheeler: [0.01, 0.01, 0.01, 0.97]
+      pedestrian:  [0.05, 0.05, 0.45, 0.45]
+
+    # per-group Markov transition (4x4, row-stochastic auto-normalized).
+    M_by_group:
+      vehicle:
+        - [0.95, 0.03, 0.01, 0.01]
+        - [0.03, 0.95, 0.01, 0.01]
+        - [0.01, 0.01, 0.95, 0.03]
+        - [0.01, 0.01, 0.03, 0.95]
+      two_wheeler:
+        - [0.95, 0.02, 0.02, 0.01]
+        - [0.02, 0.95, 0.01, 0.02]
+        - [0.02, 0.01, 0.95, 0.02]
+        - [0.01, 0.02, 0.02, 0.95]
+      pedestrian:
+        - [0.90, 0.05, 0.03, 0.02]
+        - [0.05, 0.90, 0.02, 0.03]
+        - [0.03, 0.02, 0.90, 0.05]
+        - [0.02, 0.03, 0.05, 0.90]
+
+    # ── per-model Q/R/P0 σ² (server.py Tracking Tuning: selecting a model chip updates that model) ──
+    CV:
+      q_xy: 0.005
+      q_v:  0.1
+      q_yaw: 1.5
+      r_xy: 0.05
+      r_yaw: 0.01
+      p0_xy: 1.0
+      p0_v:  100.0
+      p0_yaw: 0.1
+    CA:
+      q_xy: 0.001
+      q_v:  0.02
+      q_a:  0.05
+      q_yaw: 1.5
+      r_xy: 0.04
+      r_yaw: 0.01
+      p0_xy: 1.0
+      p0_v:  5.0
+      p0_a:  5.0
+      p0_yaw: 0.1
+    # CTRV/CTRA trust the measurement (r↓) + flexible yaw_rate (q_yaw_rate↑) — so that in
+    # corners the turn model wins over CV via its yaw_rate advantage. (If r is large,
+    # the measurement is distrusted → yaw lags + the yaw_rate uncertainty penalty makes it
+    # lose to plain CV). trade-off: yaw flip rate slightly↑.
+    CTRV:
+      q_xy: 0.002
+      q_v:  0.03
+      q_yaw: 0.02
+      q_yaw_rate: 0.01
+      r_xy: 0.04
+      r_yaw: 0.1
+      p0_xy: 1.0
+      p0_v:  5.0
+      p0_yaw: 0.1
+      p0_yaw_rate: 0.1
+      # yaw noise override when stopped (‖v‖<v_static) — suppress momentum spin after accelerate→stop
+      static_q_yaw: 10.0
+      static_q_yaw_rate: 20.0
+      static_r_yaw: 0.001
+    CTRA:
+      q_xy: 0.002
+      q_v:  0.03
+      q_a:  0.1
+      q_yaw: 0.02
+      q_yaw_rate: 0.01
+      r_xy: 0.04
+      r_yaw: 0.1
+      p0_xy: 1.0
+      p0_v:  5.0
+      p0_a:  5.0
+      p0_yaw: 0.1
+      p0_yaw_rate: 0.1
+      # yaw noise override when stopped (‖v‖<v_static) — suppress momentum spin after accelerate→stop
+      static_q_yaw: 10.0
+      static_q_yaw_rate: 20.0
+      static_r_yaw: 0.001
+
+  # ===================================================================
+  # [Shared params]  used by both cv / imm modes.
+  # ===================================================================
+
+  # Detection pre-filter.
+  detection_score_threshold: 0.05
+  # if confidence < threshold, scale R by this factor.
+  conf_low_threshold: 0.5
+  conf_low_R_scale: 10.0
+
+  # Association.
+  cost_metric: maha            # 'l2' | 'maha'
+  match_algorithm: greedy      # 'greedy' (prevents ID swap) | 'hungarian'
+  max_association_dist_m: 11.0
+  pedestrian_max_association_dist_m: 1.0
+  static_max_association_dist_m: 0.4
+  pedestrian_class_isolation: true
+  class_isolation: true
+
+  # lateral (perpendicular to heading axis) association gate — blocks side-jump mismatches.
+  # Decompose the residual into lon/lat relative to the track heading axis → reject the match if the lat (perpendicular) component > lat_max_m.
+  # A car barely moves sideways → keep small (e.g. 2.0). Only when ‖v‖≥lat_min_speed (direction trusted). lat_max_m=0=disabled.
+  # Live-validate via server.py Tracking Tuning (ag_lat/ag_latv).
+  adaptive_gate:
+    lat_max_m: 2.0       # m — lateral residual upper bound (0=disabled)
+    lat_min_speed: 1.0   # m/s — apply the lateral gate only at speeds above this
+
+  # gate on the angle between displacement direction vs heading when the track moves fast.
+  yaw_change_gate:
+    enabled: false
+    max_deg: 90.0
+    min_speed: 1.0
+    min_age: 3
+
+  # Lifecycle.
+  max_history: 10
+  max_history_for_outdated: 3
+  static_max_history_for_outdated: 9    # static objects can be kept longer
+  confirmed_age_min: 3
+  confirmed_detect_min: 2
+
+  # Class EMA — how much new measurements are reflected (larger alpha = faster reflection).
+  class_alpha: 0.2
+
+# ─────────────────────────────────────────────────────────────────────
+# Post-processing (after forward tracking finishes).
+# ─────────────────────────────────────────────────────────────────────
+post_processing:
+  # true: keep raw detection boxes + replace only track_uuid (KF/IMM posterior not reflected)
+  # false: emit KF/IMM posterior xy/yaw (smoothing). Set false to see the IMM mode effect.
+  relabel_only: false
+
+  # yaw estimation for dynamic frames — based on KF velocity direction (recommend setting equal to v_static).
+  dynamic_yaw_threshold: 0.25
+
+  # min floor for lwh.
+  min_lwh: {l: 0.3, w: 0.3, h: 0.5}
+
+  # static object detection (measurement world position based, per-track) — for qualitative validation (viewer "Static" toggle).
+  # static = (track measurement bbox diagonal d_max < tau_static) OR (max inter-frame displacement < tau_motion).
+  # OR (single condition): static if either holds. Uses the measurement's min/max displacement instead of the posterior (v=0 forcing).
+  static_detection:
+    tau_static: 4.0    # m — overall track displacement (measurement bbox diagonal) threshold
+    tau_motion: 0.3    # m — max inter-frame displacement threshold
+
+  # jitter-static yaw freeze — fix the output yaw of a static track that spins in place
+  # (pinwheel) due to detection noise to the per-track dominant direction. Aimed at reducing downstream turning atomic function FP.
+  # The signal uses MEASUREMENT world yaw (the IMM output smears the axis while tracking flips; the measurement axis is stable).
+  # Gate: measured cumulative rotation Σ|Δyaw| ≥ tau_total(deg) AND net_disp(robust) < tau_net(m).
+  # Direction: RANSAC axis (mod180) consensus — line fit with the most-inlier axis, remove outliers.
+  # Live-validate via server.py Tracking Tuning (yaw_freeze_on/total/net), then turn on enabled.
+  yaw_jitter_freeze:
+    enabled: true
+    tau_total: 450.0   # deg — captures ~5.7% of tracks (P92) in the static distribution, weak length bias (corr 0.10)
+    tau_net: 4.0       # m — in-place decision (robust net movement). Handles large-vehicle center wander (2~4m) (captures f4c94798 BUS/ART_BUS)
+
+  # IoU clean — if two REGULAR_VEHICLE bboxes (rotated BEV) overlap in one frame with IoU ≥ iou_thr,
+  # the longer-history (n_frames) track wins and the shorter (n≥2) track is removed as noise (entire sequence).
+  # But if both tracks have n_frames ≥ protect_both_min, keep both (long tracks are not removed against each other).
+  # Live-validate via server.py Tracking Tuning (clean_on/clean_iou/clean_protect_both).
+  iou_clean:
+    enabled: true
+    iou_thr: 0.2          # rotated BEV IoU threshold (captures short noise tracks, 0.2 to also catch ~0.255 cases)
+    protect_both_min: 10  # if both have history ≥ this value, keep both
+
+  # dynamic velocity yaw flip — for a genuinely moving track (robust net_disp ≥ tau_dyn), if the IMM yaw
+  # is opposite (>90°) to the motion (velocity) direction, flip by +180 to align front/back only. The yaw value is preserved (no replacement).
+  # vdir is atan2(vy,vx) of trusted-speed (‖v‖≥v_min) frames; low-speed frames use the nearest trusted frame's
+  # vdir → also corrects the opposite yaw at acceleration onset. Frozen static spinners excluded, IMM-active tracks only.
+  # Gated by net movement rather than instantaneous ‖v‖ → prevents misjudging stationary objects whose ‖v‖ spikes from noise.
+  # Live-validate via server.py Tracking Tuning (dynyaw_on/dynyaw_tau/dynyaw_vmin).
+  dynamic_velocity_yaw:
+    enabled: true
+    tau_dyn: 2.0          # m — if robust net movement ≥ this value, dynamic track
+    v_min: 1.5            # m/s — trusted speed of vdir used as flip reference (high-speed frames only, avoids noisy
+                          #        low-speed velocity at acceleration onset → consistent flip even for early backward yaw, corner-safe)
+
+  # fix STOP_SIGN yaw → opposite (anti-parallel) of the nearest lane's heading.
+  # The at_stop_sign atomic passes when the vehicle yaw≈180° in the sign's frame (facing the sign) →
+  # the sign heading must be opposite to the lane's heading. Replace a static sign's raw detection yaw error
+  # with the map centerline → reduces at_stop_sign FN. Needs the AV2 original map (get_map).
+  stop_sign_yaw_to_lane:
+    enabled: true

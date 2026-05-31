@@ -1,0 +1,4 @@
+- is_category                            : Returns all objects of a given category from the track_candidates dict. This method also accepts the super-categories "ANY" and "VEHICLE".
+- get_visual_actor                       : Identify an ACTOR by what it visually IS (VLM on the actor's best crop). Use for actor types with no AV2 category: police car, ambulance, forklift, food truck, construction worker, child. Gather broadly first; FILTER-only.
+- stationary                             : Returns objects that moved less than 2m over their length of observation in the scenario. Intended to separate parked from active vehicles.
+- active                                 : Returns objects that are actively moving (i.e., not parked). Preferred wrapper for generic motion language ("moving", "walking", "driving", "active") over scenario_not(stationary).

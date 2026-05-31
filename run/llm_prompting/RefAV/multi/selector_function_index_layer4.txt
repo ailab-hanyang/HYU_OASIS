@@ -1,0 +1,15 @@
+- has_objects_in_relative_direction      : Identifies tracked objects with at least the minimum number of related candidates in the specified direction.
+- get_objects_in_relative_direction      : Returns a scenario dictionary of the related candidates that are in the relative direction of the track candidates.
+- cut_in_front_of                        : Identifies cut-in events where a track candidate enters the forward lateral band of a related candidate from the side.
+- facing_toward                          : Identifies objects in track_candidates that are FACING (orientation-based, works for stationary subjects) toward a related candidate.
+- heading_toward                         : Identifies objects in track_candidates whose VELOCITY VECTOR points at a related candidate (motion-based).
+- being_crossed_by                       : Strict perpendicular-cross relation: the related candidate's centroid crosses a half-midplane of the tracked object's bounding box.
+- being_overtaken                        : Identifies tracks that are being overtaken (passed) on their left or right by a related candidate.
+- near_objects                           : Identifies timestamps when a tracked object is near a specified set of related objects.
+- following                              : Identifies timestamps when a tracked object is following behind a candidate object.
+- heading_in_relative_direction_to       : Returns the subset of track candidates that are traveling in the given direction compared to the related candidates.
+- in_same_lane                           : Identifies tracks that are in the same road lane as a related candidate.
+- on_relative_side_of_road               : Identifies tracks that are on the same or opposite side of the road as a related candidate.
+- between_two_objects                    : Identifies tracks that are spatially between two anchor sets — axis-free geometric primitive.
+- group_of                               : Returns track_candidates that belong to a group of >= min_objects same-category objects within within_distance (min_objects counts the track itself).
+- nth_object_in_direction                : Selects the n-th nearest object inside a directional region from the view_point, per timestamp.

@@ -1,0 +1,116 @@
+# ════════════════════════════════════════════════════════════════════════════
+# RTS Smoothing config — apply backward smoothing to tracker output (sm_annotations).
+# Usage/structure: tools/rts_smoothing/README.md
+# Sections: [IO] → smoother_mode → imm_smoothing(imm mode) → yaw_postproc(common post-processing)
+#       → yaw_correction(stage-1, server stage1·2) → rts_smoothing(rts mode)
+# Note: freeze_initial / static_cov_inflate exist in both imm_smoothing and rts_smoothing
+#       separately (per-mode separate values — imm is read by IMMSmoothParams, rts by RTSParams).
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── [IO] input/output ──────────────────────────────────────────────────────
+split: val
+log_id: 02678d04-cc9f-3148-9f95-1ba66347dff9
+src_tracker: Le3DE2E_Tracking_ego_yawfix2_track6
+# Output tracker name — if null, auto (<src_tracker>_imm_smooth or _rts). If set, created with that name.
+# apply_rts_smoothing uses it in the order CLI(--dst_tracker) > this value > auto.
+dst_tracker: Le3DE2E_Tracking_ego_yawfix2_track6_imm_smooth
+
+# Smoother type — 'rts' (existing single-model 11D RTS, re-filters sm_annotations itself) or
+# 'imm' (per-model RTS smoother based on the IMM forward sidecar imm_smooth_inputs.feather).
+# server.py / apply branches on this key. For imm, src_tracker must be the IMM dst of
+# multi_class_tracking (holding imm_smooth_inputs.feather).
+smoother_mode: rts        # rts | imm
+
+# IMM smoother (smoother_mode=imm) parameters.
+imm_smoothing:
+  n_min: 2                # frame count < n_min → skip smoothing (pass through original)
+  freeze_initial: true    # do not backward-smooth the first frame (k=0) — prevents the initial box
+                          # from being pulled toward the next measurement by the large initial P0 (keep forward value)
+  # For a static frame (T), inflate the T+1 prior cov (the information matrix of the backward gain)
+  # by multiplier to weaken the gain → trust the forward (measurement/R) estimate more. Corrects the
+  # dilution of a static vehicle's large Q through backward smoothing.
+  static_cov_inflate:
+    enabled: true
+    multiplier: 100
+    v_static: 0.50        # m/s — below this speed is static
+
+# Post-smoothing yaw post-processing reapply — reapply tracking's (build_output_df) yaw
+# post-processing (stop_sign_yaw_to_lane / yaw_jitter_freeze / dynamic_velocity_yaw) with the same
+# functions onto the yaw the smoother overwrote, to unify tracking and smoothing yaw post-processing.
+# Flags/thresholds reuse the post_processing values from the multi_class_tracking config. (common to rts·imm modes)
+yaw_postproc:
+  enabled: true
+  # On a static frame (‖v‖<v_static), if the smoothed yaw jumps by thr_deg or more from the previous frame,
+  # keep the previous yaw (sequential propagate). Suppresses momentary jumps/flips of static-object yaw. (smoothing only)
+  static_yaw_jump_hold:
+    enabled: true
+    thr_deg: 20.0
+    v_static: 0.25
+  # If the smoothed yaw diverges by thr_deg or more from the tracking-output yaw (flip already resolved), replace it
+  # with the tracking yaw (regardless of speed). Returns the garbage (intermediate angle) produced when the smoother
+  # smears a ±180° flip via circular mean back to tracking's correct axis. Fixes mixed-velocity regions (static/dynamic gate blind spot).
+  yaw_lock_to_track:
+    enabled: false
+    thr_deg: 30.0
+
+# ── [stage-1 yaw correction] optional — apply_yaw_correction standalone / server viewer 1·2-stage ──
+# Unify static majority yaw + resolve dynamic motion flips. A path independent of the rts/imm main smoothing.
+yaw_correction:
+  enabled: true
+  tau_static: 4.0
+  tau_motion: 0.2
+  n_min: 2
+  # Static-object (d_max < tau_static) yaw stabilization — unify to the majority direction (only the minority +π flip).
+  # Never touches the yaw value itself or the bbox position/size/score. If false, pass raw through as-is (legacy).
+  static_yaw_stabilize: true
+  skip_categories:
+  - EGO_VEHICLE
+  - PEDESTRIAN
+# ── [rts mode] 11-D single CV-RTS parameters (smoother_mode=rts) ──────────
+rts_smoothing:
+  enabled: true
+  detection_score_threshold: 0.0
+  Q:
+    x: 0.1
+    y: 0.1
+    z: 0.01
+    theta: 0.01
+    l: 0.0005
+    w: 0.0005
+    h: 0.0005
+    s: 0.0001
+    vx: 0.5
+    vy: 0.5
+    vz: 0.05
+  R:
+    x: 0.05
+    y: 0.05
+    z: 0.05
+    theta: 0.0003
+    l: 0.05
+    w: 0.05
+    h: 0.05
+    s: 0.0005
+  P0:
+    x: 1.0
+    y: 1.0
+    z: 0.5
+    theta: 0.5
+    l: 0.1
+    w: 0.1
+    h: 0.1
+    s: 0.1
+    vx: 10.0
+    vy: 10.0
+    vz: 1.0
+  n_min: 2
+  freeze_initial: true    # do not backward-smooth the first frame (k=0) — prevents the initial box
+                          # from being pulled toward the next measurement by the large initial P0 (keep forward value)
+  # For a static frame (T), inflate the T+1 prior cov (backward gain information matrix) to weaken the gain
+  # → trust forward (measurement/R) more. Corrects the dilution of a static vehicle's large Q through backward smoothing.
+  static_cov_inflate:
+    enabled: true
+    multiplier: 10.0
+    v_static: 0.25        # m/s
+  Q_aligned:
+    enabled: false

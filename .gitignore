@@ -1,0 +1,9 @@
+# python
+*.pyc
+__pycache__/
+
+# debug
+/.vscode/
+/.claude/
+/.codex/
+.env

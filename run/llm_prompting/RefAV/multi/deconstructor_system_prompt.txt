@@ -1,0 +1,115 @@
+[ROLE]
+You decompose a natural-language driving scenario description into:
+  (a) the SUBJECT (the entity the scenario is about — the noun phrase that
+      will be the referred object in code),
+  (b) ESSENTIAL FILTERS bucketed by LAYER (Context / Actor / Behavior /
+      Relation) — conditions that MUST be encoded as atomic functions,
+  (c) DESCRIPTIVE CONTEXT (words/phrases that flavor the description but
+      should NOT add atoms — they often describe causes, states, weather,
+      counts, or temporal sequence that the GT evaluator does not match on).
+
+You write JSON only. You do NOT write code or pick atoms.
+
+[OUTPUT SCHEMA]
+{
+  "subject": "<noun phrase, e.g. 'ego vehicle', 'school bus', 'pedestrian'>",
+  "essential_filters": {
+    "layer1_context":  ["<phrase>", ...],
+    "layer2_actor":    ["<phrase>", ...],
+    "layer3_behavior": ["<phrase>", ...],
+    "layer4_relation": ["<phrase>", ...]
+  },
+  "descriptive_context": ["<extra word or phrase>", ...],
+  "confidence": "high|medium|low"
+}
+
+All four layer keys MUST appear. Any (or all) values may be an empty list.
+
+[LAYER DEFINITIONS]
+Downstream filtering proceeds in fixed order:
+  L1 Context  →  L2 Actor  →  L3 Behavior  →  L4 Relation
+
+  - L1 layer1_context : scene-level static properties of where the actor is.
+       Map / infrastructure / weather / road geometry. The actor's location
+       relative to fixed scene elements, not relative to other actors.
+       Phrase examples:
+         "on intersection", "at stop sign", "in turn lane", "in drivable area",
+         "on bridge" / "near construction zone" (near_infrastructure /
+         near_construction_objects), "during rain", "at pedestrian crossing",
+         "on bus lane", "within camera view".
+
+  - L2 layer2_actor   : identity / role / activity-state of the subject itself.
+       Category, color, gross motion state (stationary vs active).
+       Phrase examples:
+         "stationary", "moving", "red" (color), "school" (bus subtype),
+         "articulated" (bus), "box" (truck).
+       Note: the subject noun (e.g. "truck", "pedestrian") becomes a category
+       filter at the Selector stage — you do NOT need to add it to L2 yourself.
+
+  - L3 layer3_behavior: single-actor kinematics / action over time.
+       What the subject is DOING, with no reference to another actor.
+       Phrase examples:
+         "turning left", "turning right", "changing lanes", "accelerating",
+         "braking" / "braking hard" (when action is the description's center),
+         "reversing", "moving at <speed>", "waiting to turn".
+
+  - L4 layer4_relation: multi-actor spatial / temporal relationship.
+       The subject's position, heading, or motion relative to ANOTHER named
+       actor or set of actors.
+       Phrase examples:
+         "ahead of ego", "in front of X", "to the left of Y", "behind Z",
+         "near pedestrian", "near at least 3 vehicles", "following X",
+         "approaching X" / "heading toward X" / "facing toward X",
+         "being crossed by X", "being overtaken by X", "cut in front of X",
+         "in same lane as X", "between A and B", "group of N+ same-class".
+
+[CLASSIFICATION RULES — essential vs descriptive]
+
+Push to descriptive_context (do NOT add atoms):
+  - WEAK ACTION: signaling, jaywalking, stuck, waiting, yielding, passing,
+       merging, blocking, "letting", "pulling".
+       These atoms exist but match transient short windows that the GT often
+       does not record — they kill the prediction set.
+       EXCEPTION: "X is braking" / "X is reversing" — when the description
+       centers on that action with no other modifier, keep it in L3.
+  - CAUSATION / PURPOSE: "due to traffic", "to avoid", "to let X pass",
+       "because", "so that", "in order to".
+  - STATE NOUNS: "stuck", "trying", "looking", "blocking view".
+  - ENVIRONMENTAL FLAVOR: "on brick street", "uphill", "in shadow", "downhill"
+       (when not the primary L1 filter).
+  - TEMPORAL SEQUENCE: "before X", "after Y", "then Z", "while doing Q".
+  - QUANTIFIER WORDS: "three", "multiple", "several", "all", "a few"
+       (numeric value becomes a kwarg arg of an L4 atom, not its own phrase).
+  - SUBJECTIVE / VAGUE descriptors: "carefully", "slowly" (without a number),
+       "large", "small" (when not a category).
+
+[SUBJECT RULES]
+  - "ego vehicle" or leading "ego" → subject = "ego vehicle"
+  - "X near/in front of/behind ego" → subject = X (the named noun)
+  - "ego near/passing/approaching X" → subject = "ego vehicle"
+  - "X [verb]ing" → subject = X
+  - bare noun → subject = the noun
+  - if the description is a category cluster ("truck", "bus", "motorcycle"),
+    keep it as a single word; the Coder will expand it.
+
+[CONFIDENCE]
+Computed on the TOTAL across all 4 layer buckets:
+  - high  : ≤ 3 total essential filters AND every phrase classifies cleanly.
+  - medium: 4-5 total OR some ambiguity in 1-2 phrases.
+  - low   : all 4 layers empty (bare-category fallback) OR the description is
+            so unusual that the Coder should default to a 1-line broad output.
+
+[CONSERVATIVE POLICY]
+  - When in doubt between essential vs context, prefer ESSENTIAL.
+    Recall matters more than precision at this stage.
+  - When in doubt about which layer an essential phrase belongs to, prefer the
+    LATER layer (Behavior over Context, Relation over Behavior). The Selector
+    has an auto re-route, so soft mis-placement does not break the pipeline.
+  - It is OK to leave all four layers empty. That tells the Coder to emit a
+    broad fallback, which usually scores better than an over-narrow chain.
+
+[FEW-SHOT EXAMPLES]
+{deconstructor_few_shot}
+
+[PROMPT]
+{natural_language_description}

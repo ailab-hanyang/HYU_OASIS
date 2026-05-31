@@ -1,0 +1,331 @@
+# SIMPLE PATTERNS — subject + 1-2 spatial/categorical filters
+# essential_filters is ALWAYS a 4-key dict; missing layers are empty lists.
+
+PROMPT: stroller
+OUTPUT: {"subject": "stroller", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "low"}
+
+PROMPT: bicycle on intersection
+OUTPUT: {"subject": "bicycle", "essential_filters": {"layer1_context": ["on intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: dog near an intersection
+OUTPUT: {"subject": "dog", "essential_filters": {"layer1_context": ["near intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: stationary construction barrel
+OUTPUT: {"subject": "construction barrel", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: ego vehicle driving while it is cloudy
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["weather cloudy"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["driving", "while", "it"], "confidence": "high"}
+
+PROMPT: car turning right
+OUTPUT: {"subject": "car", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning right"], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: bus in bus lane
+OUTPUT: {"subject": "bus", "essential_filters": {"layer1_context": ["on lane type BUS"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: vehicle changing lanes to the right
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing lanes right"], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: ego vehicle traveling in the shadow of a building
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["near shadow_of_building"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["traveling"], "confidence": "high"}
+
+PROMPT: dog on roadway
+OUTPUT: {"subject": "dog", "essential_filters": {"layer1_context": ["on road"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["roadway"], "confidence": "high"}
+
+PROMPT: regular vehicles that are stopped or nearly stopped
+OUTPUT: {"subject": "vehicles", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["velocity 0 to 0.5"], "layer4_relation": []}, "descriptive_context": ["regular", "stopped", "nearly"], "confidence": "high"}
+
+PROMPT: bus with another bus in its lane
+OUTPUT: {"subject": "bus", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["in same lane as bus"]}, "descriptive_context": ["another", "its"], "confidence": "high"}
+
+PROMPT: school bus near construction zone
+OUTPUT: {"subject": "school bus", "essential_filters": {"layer1_context": ["near construction"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["zone"], "confidence": "high"}
+
+PROMPT: group of people
+OUTPUT: {"subject": "group", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["group of 3+"]}, "descriptive_context": ["people"], "confidence": "high"}
+
+PROMPT: ego vehicle driving during daylight
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["time of day daylight"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["driving", "during"], "confidence": "high"}
+
+PROMPT: box truck at stop sign
+OUTPUT: {"subject": "box truck", "essential_filters": {"layer1_context": ["at stop sign"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: ego vehicle slipping into left turn lane
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["in turn lane"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["slipping", "into", "left"], "confidence": "high"}
+
+PROMPT: pedestrians using designated crossing
+OUTPUT: {"subject": "pedestrians", "essential_filters": {"layer1_context": ["at pedestrian crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["using", "designated"], "confidence": "high"}
+
+PROMPT: vehicle reversing to parallel park
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["reversing"], "layer4_relation": []}, "descriptive_context": ["parallel", "park"], "confidence": "high"}
+
+PROMPT: vehicle braking heavily
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["braking hard"], "layer4_relation": []}, "descriptive_context": ["heavily"], "confidence": "high"}
+
+PROMPT: vehicle accelerating more than two meters per second
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["accelerating >2.0"], "layer4_relation": []}, "descriptive_context": ["more", "than", "two", "meters", "per", "second"], "confidence": "medium"}
+
+PROMPT: vehicle getting passed from the right
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being overtaken by vehicle right"]}, "descriptive_context": ["getting", "passed"], "confidence": "high"}
+
+PROMPT: ego vehicle approaching bicyclist separated by bollards
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["bicyclist forward within 30"]}, "descriptive_context": ["approaching", "separated", "bollards"], "confidence": "high"}
+
+PROMPT: moving wheelchair within 5 meters of an intersection
+OUTPUT: {"subject": "wheelchair", "essential_filters": {"layer1_context": ["near intersection within 5"], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["moving", "meters"], "confidence": "high"}
+
+PROMPT: vehicle being crossed by a pedestrian
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["being crossed by pedestrian"]}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: ego vehicle near construction barrel
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["near construction barrel"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: vehicle traveling in the opposite direction as the ego vehicle
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["heading opposite to ego vehicle"]}, "descriptive_context": ["traveling", "direction"], "confidence": "high"}
+
+PROMPT: group of at least 3 moving bicyclists within 5 meters of each other
+OUTPUT: {"subject": "group", "essential_filters": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["group of 3+"]}, "descriptive_context": ["least", "moving", "bicyclists", "within", "meters", "each", "other"], "confidence": "medium"}
+
+PROMPT: vehicle changing lanes while in bike lane
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["on lane type BIKE"], "layer2_actor": [], "layer3_behavior": ["changing lanes"], "layer4_relation": []}, "descriptive_context": ["while"], "confidence": "high"}
+
+PROMPT: bicycle facing toward a vehicle
+OUTPUT: {"subject": "bicycle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["facing vehicle"]}, "descriptive_context": ["toward"], "confidence": "high"}
+
+
+
+# HARD PATTERNS — distinguish essential filters from descriptive context
+
+PROMPT: stopped car
+OUTPUT: {"subject": "car", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["velocity 0.0 to 0.5"], "layer4_relation": []}, "descriptive_context": ["stopped"], "confidence": "high"}
+
+PROMPT: bus making a turn at a stop sign
+OUTPUT: {"subject": "bus", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": []}, "descriptive_context": ["making", "turn", "stop", "sign"], "confidence": "high"}
+
+PROMPT: pedestrian facing away from the ego vehicle
+OUTPUT: {"subject": "pedestrian", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["facing", "away"], "confidence": "low"}
+
+PROMPT: three busses traveling in the same lane
+OUTPUT: {"subject": "busses", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["three", "traveling", "same", "lane"], "confidence": "low"}
+
+PROMPT: bicycle passing by parked vehicle
+OUTPUT: {"subject": "bicycle", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["passing", "parked"], "confidence": "high"}
+
+PROMPT: at least active 2 vehicles within 15 meters behind ego vehicle
+OUTPUT: {"subject": "least", "essential_filters": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["vehicle backward with 2+ within 15"]}, "descriptive_context": ["vehicles", "meters", "behind"], "confidence": "high"}
+
+PROMPT: ego vehicle near articulated bus
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near articulated bus"]}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: vehicle with multiple pedestrians to the left
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["pedestrian left with 2+ within 10"]}, "descriptive_context": ["multiple", "pedestrians"], "confidence": "high"}
+
+PROMPT: vehicle navigating near multiple bicycles
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["near bicycle with 2+"]}, "descriptive_context": ["navigating", "multiple", "bicycles"], "confidence": "high"}
+
+PROMPT: school bus stuck on top of intersection due to traffic
+OUTPUT: {"subject": "school bus", "essential_filters": {"layer1_context": ["on intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["stuck", "top", "due", "traffic"], "confidence": "high"}
+
+PROMPT: pedestrian to the left of a truck
+OUTPUT: {"subject": "pedestrian", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["pedestrian left within 10"]}, "descriptive_context": ["truck"], "confidence": "high"}
+
+PROMPT: stop sign behind a pedestrian
+OUTPUT: {"subject": "stop sign", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["pedestrian forward within 10"]}, "descriptive_context": ["behind"], "confidence": "high"}
+
+PROMPT: bus signaling to merge in front of the ego vehicle
+OUTPUT: {"subject": "bus", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near ego vehicle within 30"]}, "descriptive_context": ["signaling", "merge", "front"], "confidence": "high"}
+
+PROMPT: multiple people jaywalking in front of the ego vehicle
+OUTPUT: {"subject": "people", "essential_filters": {"layer1_context": ["on road"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["jaywalking_peds forward with 2+ within 30"]}, "descriptive_context": ["multiple", "front"], "confidence": "high"}
+
+PROMPT: passenger vehicle near stroller in road
+OUTPUT: {"subject": "passenger vehicle", "essential_filters": {"layer1_context": ["on road"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near stroller within 10"]}, "descriptive_context": [], "confidence": "high"}
+
+
+
+# VARIED PATTERNS — additional coverage across query types
+
+PROMPT: excavator
+OUTPUT: {"subject": "excavator", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "low"}
+
+PROMPT: vehicle with caution markings on the back
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["caution", "markings", "back"], "confidence": "low"}
+
+PROMPT: ego vehicle in a 25 miles per hour zone
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["near speed_limit_zone"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["miles", "per", "hour"], "confidence": "high"}
+
+PROMPT: person in a wheelchair on the median
+OUTPUT: {"subject": "person", "essential_filters": {"layer1_context": ["near median"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["wheelchair"], "confidence": "high"}
+
+PROMPT: vehicle flashing their hazard lights
+OUTPUT: {"subject": "vehicle flashing", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["their", "hazard", "lights"], "confidence": "high"}
+
+PROMPT: bus pulled into bus stop diagonally
+OUTPUT: {"subject": "bus pulled", "essential_filters": {"layer1_context": ["near bus_stop"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["into", "diagonally"], "confidence": "high"}
+
+PROMPT: ego vehicle making right turn during a yellow light
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["near yellow_light"], "layer2_actor": [], "layer3_behavior": ["turning right"], "layer4_relation": []}, "descriptive_context": ["making", "turn", "during"], "confidence": "high"}
+
+PROMPT: ego vehicle turning right through a green light without having to stop
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["near green_light"], "layer2_actor": [], "layer3_behavior": ["turning right"], "layer4_relation": []}, "descriptive_context": ["through", "without", "having", "stop"], "confidence": "high"}
+
+PROMPT: person crossing directly in front of the ego vehicle
+OUTPUT: {"subject": "person", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["crossing", "directly", "front"], "confidence": "low"}
+
+PROMPT: van pausing an unprotected left turn to let ego vehicle pass
+OUTPUT: {"subject": "van pausing", "essential_filters": {"layer1_context": ["on intersection"], "layer2_actor": [], "layer3_behavior": ["waiting to turn"], "layer4_relation": []}, "descriptive_context": ["unprotected", "left", "let", "pass"], "confidence": "high"}
+
+PROMPT: vehicle making left turn into left turn lane opposing traffic
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["in turn lane"], "layer2_actor": [], "layer3_behavior": ["turning left"], "layer4_relation": []}, "descriptive_context": ["making", "into", "opposing", "traffic"], "confidence": "high"}
+
+PROMPT: vehicle proceeding through intersection after light changes from red to green
+OUTPUT: {"subject": "vehicle proceeding", "essential_filters": {"layer1_context": ["on intersection"], "layer2_actor": [], "layer3_behavior": ["accelerating"], "layer4_relation": []}, "descriptive_context": ["through", "after", "light", "changes", "red", "green"], "confidence": "medium"}
+
+PROMPT: a runner crossing the street in the ego vehicle's path
+OUTPUT: {"subject": "runner", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["velocity 2.0 to ?"], "layer4_relation": []}, "descriptive_context": ["crossing", "street", "s", "path"], "confidence": "high"}
+
+PROMPT: bus in front of ego vehicle obstructing view of red traffic light
+OUTPUT: {"subject": "bus", "essential_filters": {"layer1_context": ["near intersection within 20"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["bus forward within 30"]}, "descriptive_context": ["front", "obstructing", "view", "red", "traffic", "light"], "confidence": "medium"}
+
+PROMPT: ego vehicle merging between two vehicles using a slip lane
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": ["in turn lane"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["between vehicle and vehicle"]}, "descriptive_context": ["merging", "two", "vehicles", "using", "slip"], "confidence": "medium"}
+
+PROMPT: pedestrian entering a bus
+OUTPUT: {"subject": "pedestrian", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["near bus within 3"]}, "descriptive_context": ["entering"], "confidence": "high"}
+
+PROMPT: pedestrians getting off bus
+OUTPUT: {"subject": "pedestrians", "essential_filters": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["near bus within 5"]}, "descriptive_context": ["getting", "off"], "confidence": "high"}
+
+PROMPT: people exiting a vehicle from both sides at once
+OUTPUT: {"subject": "people", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near vehicle within 3"]}, "descriptive_context": ["exiting", "both", "sides"], "confidence": "high"}
+
+PROMPT: person walking two dogs
+OUTPUT: {"subject": "person", "essential_filters": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["near dog with 2+ within 3"]}, "descriptive_context": ["walking", "two", "dogs"], "confidence": "high"}
+
+PROMPT: vehicle in adjacent lane switching lanes to pass a turning vehicle
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning", "changing lanes"], "layer4_relation": []}, "descriptive_context": ["adjacent", "lane", "switching", "pass"], "confidence": "high"}
+
+PROMPT: vehicle stopped at official signaler
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["velocity 0.0 to 0.5"], "layer4_relation": ["official signaler forward within 20"]}, "descriptive_context": ["stopped"], "confidence": "high"}
+
+PROMPT: white van with school bus students decal in front of ego vehicle
+OUTPUT: {"subject": "white van", "essential_filters": {"layer1_context": [], "layer2_actor": ["color white"], "layer3_behavior": [], "layer4_relation": ["regular vehicle forward within 40"]}, "descriptive_context": ["school", "bus", "students", "decal", "front"], "confidence": "medium"}
+
+PROMPT: ego vehicle between three school busses
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["between school bus and school bus", "near school bus with 3+"]}, "descriptive_context": ["three", "busses"], "confidence": "high"}
+
+PROMPT: person walking their bike across the street
+OUTPUT: {"subject": "person", "essential_filters": {"layer1_context": ["at pedestrian crossing"], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["near bicycle within 2"]}, "descriptive_context": ["walking", "their", "bike", "across", "street"], "confidence": "medium"}
+
+PROMPT: vehicle getting over to make room for a cyclist in a bike lane
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["on lane type BIKE"], "layer2_actor": [], "layer3_behavior": ["changing lanes"], "layer4_relation": ["bicyclist right within 10"]}, "descriptive_context": ["getting", "over", "make", "room", "cyclist"], "confidence": "medium"}
+
+PROMPT: ego vehicle braking to avoid a vehicle that is partially in their lane
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["braking"], "layer4_relation": ["in same lane as vehicle", "vehicle forward within 25"]}, "descriptive_context": ["avoid", "partially", "their"], "confidence": "high"}
+
+PROMPT: truck unloading in the middle of the road
+OUTPUT: {"subject": "truck unloading", "essential_filters": {"layer1_context": ["on road"], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["middle"], "confidence": "high"}
+
+
+
+# BARE-CATEGORY FALLBACK — all four layer buckets empty, low confidence
+
+PROMPT: stroller
+OUTPUT: {"subject": "stroller", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": [], "confidence": "low"}
+
+PROMPT: three buses traveling in the same lane
+OUTPUT: {"subject": "bus", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["three", "traveling", "in", "same", "lane"], "confidence": "low"}
+
+PROMPT: ambulance with emergency lights
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["ambulance", "emergency", "lights"], "confidence": "low"}
+
+PROMPT: fire truck in a non-emergency
+OUTPUT: {"subject": "truck", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["fire", "non", "emergency"], "confidence": "low"}
+
+PROMPT: ego vehicle traveling on brick street
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["traveling", "brick", "street"], "confidence": "low"}
+
+PROMPT: motorcyclist braking hard
+OUTPUT: {"subject": "motorcyclist", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["braking", "hard"], "confidence": "low"}
+
+PROMPT: ego vehicle braking near traffic controller
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["braking", "traffic", "controller"], "confidence": "low"}
+
+PROMPT: truck following ego vehicle on a cloudy day
+OUTPUT: {"subject": "truck", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["following", "cloudy", "day"], "confidence": "low"}
+
+PROMPT: vehicle sitting on the median
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["sitting", "median"], "confidence": "medium"}
+
+PROMPT: scooter rider passing ego vehicle through a small gap between the curb
+OUTPUT: {"subject": "scooter rider", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near ego vehicle"]}, "descriptive_context": ["passing", "through", "small", "gap", "between", "curb"], "confidence": "low"}
+
+
+
+# ANTI-PATTERNS — these phrasings LOOK like essential filters but are NOT.
+# Each block shows the WRONG decomposition followed by the correct one.
+
+PROMPT: bus signaling to merge in front of the ego vehicle
+WRONG: essential_filters places "signaling", "merging" — both are weak action words; drop them and keep only the relational anchor.
+RIGHT: {"subject": "bus", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near ego vehicle within 30"]}, "descriptive_context": ["signaling", "to", "merge", "in", "front"], "confidence": "low"}
+
+PROMPT: school bus stuck on top of intersection due to traffic
+WRONG: essential_filters places "stuck" (state noun) and "due to traffic" (causation); only the spatial L1 anchor survives.
+RIGHT: {"subject": "school bus", "essential_filters": {"layer1_context": ["on intersection"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": []}, "descriptive_context": ["stuck", "top", "due", "traffic"], "confidence": "medium"}
+
+PROMPT: vehicle braking to avoid a pedestrian crossing
+WRONG: essential_filters places "braking" (weak transient) and "to avoid" (causation); the relational anchor stays.
+RIGHT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near pedestrian"]}, "descriptive_context": ["braking", "to", "avoid", "crossing"], "confidence": "low"}
+
+PROMPT: ego vehicle waiting for car to pass before making a right turn
+WRONG: essential_filters places "waiting" (state noun) and "before" (temporal); the turn action survives.
+RIGHT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["turning right"], "layer4_relation": []}, "descriptive_context": ["waiting", "for", "car", "pass", "before"], "confidence": "medium"}
+
+PROMPT: large truck blocking view of vehicle that is about to turn left
+WRONG: essential_filters places "blocking view" (visibility flavor), "about to turn" (intent), "large" (vague modifier).
+RIGHT: {"subject": "truck", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["near vehicle"]}, "descriptive_context": ["blocking", "view", "about", "turn", "left", "large"], "confidence": "low"}
+
+
+
+# ZERO-HOTA PARAPHRASE DROPS — derived from val analysis.
+# These prompts contain phrases that have NO atom mapping; the deconstructor
+# must DROP those phrases into descriptive_context rather than letting them
+# leak into essential_filters.
+
+PROMPT: vehicle making a u-turn crossing in front of ego vehicle
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["on intersection"], "layer2_actor": [], "layer3_behavior": ["turning"], "layer4_relation": ["in front of ego"]}, "descriptive_context": ["u-turn", "crossing"], "confidence": "medium"}
+
+PROMPT: vehicle making a right turn on a red light
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["near intersection"], "layer2_actor": [], "layer3_behavior": ["turning right"], "layer4_relation": []}, "descriptive_context": ["on", "red", "light"], "confidence": "medium"}
+
+PROMPT: vehicle making an unprotected left turn during green light
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["in turn lane"], "layer2_actor": [], "layer3_behavior": ["turning left"], "layer4_relation": []}, "descriptive_context": ["unprotected", "during", "green", "light"], "confidence": "medium"}
+
+PROMPT: vehicle waiting for a stopped school bus
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": ["velocity 0.0 to 0.5"], "layer4_relation": ["school bus forward"]}, "descriptive_context": ["waiting", "for"], "confidence": "medium"}
+
+PROMPT: pedestrian waiting for ego vehicle to pass before crossing the street
+OUTPUT: {"subject": "pedestrian", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["near ego vehicle"]}, "descriptive_context": ["waiting", "for", "pass", "before", "crossing"], "confidence": "low"}
+
+PROMPT: ego vehicle stopping to let a scooter use a crosswalk
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["velocity 0.0 to 0.5"], "layer4_relation": ["scooter forward"]}, "descriptive_context": ["stopping", "to", "let", "use", "crosswalk"], "confidence": "medium"}
+
+PROMPT: vehicle passing ego vehicle on nearly empty straight road
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": ["active"], "layer3_behavior": [], "layer4_relation": ["near ego vehicle"]}, "descriptive_context": ["passing", "nearly", "empty", "straight"], "confidence": "low"}
+
+PROMPT: ego vehicle passing parked bus
+OUTPUT: {"subject": "ego vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": ["stationary"], "layer3_behavior": [], "layer4_relation": ["near parked bus"]}, "descriptive_context": ["passing"], "confidence": "medium"}
+
+PROMPT: vehicle two cars ahead is braking
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["braking"], "layer4_relation": ["two cars ahead of ego"]}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: vehicle second in line waiting at a red light
+OUTPUT: {"subject": "vehicle", "essential_filters": {"layer1_context": ["near intersection"], "layer2_actor": [], "layer3_behavior": ["velocity 0.0 to 0.5"], "layer4_relation": ["second forward from ego"]}, "descriptive_context": ["waiting", "red", "light"], "confidence": "medium"}
+
+PROMPT: box truck changing lanes to the left
+OUTPUT: {"subject": "box truck", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": ["changing lanes left"], "layer4_relation": []}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: pedestrian crossing ahead of ego vehicle
+OUTPUT: {"subject": "pedestrian", "essential_filters": {"layer1_context": ["at pedestrian crossing"], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["in front of ego"]}, "descriptive_context": [], "confidence": "high"}
+
+PROMPT: unattended dog
+OUTPUT: {"subject": "dog", "essential_filters": {"layer1_context": [], "layer2_actor": [], "layer3_behavior": [], "layer4_relation": ["not near any pedestrian"]}, "descriptive_context": ["unattended"], "confidence": "medium"}

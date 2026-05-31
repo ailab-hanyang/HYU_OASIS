@@ -1,0 +1,16 @@
+- is_weather                             : Returns objects from the log when the scene's weather matches the given condition (rain, snow, clear, cloudy), as labeled by the Context Layer VLM on the front camera.
+- is_time_of_day                         : Returns objects from the log when the scene's time of day matches the given period (daylight, dusk_or_dawn), as labeled by the Context Layer VLM on the front camera.
+- near_infrastructure                    : Filters tracks to timestamps where a Context Layer VLM infrastructure label holds (per-camera visibility or ego-only scene-level).
+- within_camera_view                     : Returns objects that are within view of the specified camera.
+- at_pedestrian_crossing                 : Identifies objects within a certain distance from a pedestrian crossing. A distance of zero means the object is within the boundaries of the pedestrian crossing.
+- on_lane_type                           : Identifies objects on a specific lane type.
+- near_intersection                      : Identifies objects within a specified threshold of an intersection in meters.
+- on_intersection                        : Identifies objects located on top of a road intersection.
+- on_median                              : Identifies objects located on top of a road median (center divider, traffic island, or boulevard median planted strip).
+- at_stop_sign                           : Identifies timestamps when a tracked object is in a lane corresponding to a stop sign. The tracked object must be within 15m of the stop sign.
+- in_drivable_area                       : Identifies objects within track_candidates that are within a drivable area.
+- on_road                                : Identifies objects that are on a road or bike lane.
+- near_construction_objects              : Identifies tracks within distance_thresh of at least min_objects construction objects (CONSTRUCTION_BARREL, CONSTRUCTION_CONE, or SIGN).
+- in_turn_lane                           : Identifies tracks currently in a turn lane — either inside an intersection turn lane, or in a lane immediately preceding one.
+- in_parallel_parking                    : Identifies timestamps where the subject is INSIDE a parallel-parking zone.
+- on_road_with_n_lanes                   : Identifies timestamps when a track is on a road with a given lane structure.
