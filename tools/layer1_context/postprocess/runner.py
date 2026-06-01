@@ -3,7 +3,7 @@
 For each log, applies two independent operations on the 2Hz tracker-aligned
 annotation timeline. The annotation has two parts:
   - per-camera (infra/weather/time_of_day): smoothing+dilation per (camera, item)
-  - ego (17 items, no camera dimension): smoothing+dilation per (item)
+  - ego (15 items, no camera dimension): smoothing+dilation per (item)
 
 Operations:
   1. Symmetric majority-vote smoothing — recovers isolated FNs, removes short
@@ -12,8 +12,8 @@ Operations:
      `dilation_step` frames on each side, compensating VLM's conservative
      entry/exit boundaries.
 
-Inputs:  output/context_annotations_v4/<split>/<log_id>/<ts>.json
-Outputs: output/context_annotations_v4/<split>_processed/<log_id>/<ts>.json
+Inputs:  output/layer1_context/<split>/<log_id>/<ts>.json
+Outputs: output/layer1_context/<split>_processed/<log_id>/<ts>.json
 Originals are preserved.
 """
 
@@ -23,11 +23,11 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Tuple
 
-from layer1_context.postprocess.smoothing import (
+from tools.layer1_context.postprocess.smoothing import (
     dilate_confirmed_runs,
     majority_vote_smoothing,
 )
-from layer1_context.prompts.schema import CAMERA_NAMES, CONTEXT_SCHEMA
+from tools.layer1_context.prompts.schema import CAMERA_NAMES, CONTEXT_SCHEMA
 
 logger = logging.getLogger(__name__)
 

@@ -324,13 +324,13 @@ def within_camera_view(
         camera_name: The name of the camera.
     
     Returns:
-        dict: 
+        dict:
             A filtered scenario dictionary where:
-            - Keys are track UUIDs that meet the turning criteria.
+            - Keys are track UUIDs that are within view of the specified camera.
             - Values are nested dictionaries containing timestamps.
-    
+
     Example:
-        red_cars = get_visual_actor(cars, log_dir, 'a red car')
+        front_objects = within_camera_view(vehicles, log_dir, camera_name='ring_front_center')
     """
 
 def turning(

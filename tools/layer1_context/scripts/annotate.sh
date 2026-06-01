@@ -3,16 +3,16 @@
 # followed by post-processing. Pair with tmux/nohup for long jobs.
 #
 # Usage (inside the docker container, from repo root):
-#     bash layer1_context/tools/annotate.sh                # default: val
-#     bash layer1_context/tools/annotate.sh test
-#     bash layer1_context/tools/annotate.sh val 8          # postprocess workers
+#     bash tools/layer1_context/scripts/annotate.sh                # default: val
+#     bash tools/layer1_context/scripts/annotate.sh test
+#     bash tools/layer1_context/scripts/annotate.sh val 8          # postprocess workers
 
 set -euo pipefail
 
 SPLIT="${1:-val}"
 PP_WORKERS="${2:-4}"
 
-cd "$(dirname "$0")/../.."   # repo root
+cd "$(dirname "$0")/../../.."   # repo root
 export PYTHONPATH="."
 
 START=$(date +%s)
@@ -25,11 +25,11 @@ echo "============================================================"
 
 echo
 echo "[1/2] vLLM annotation (split=${SPLIT})"
-python -m layer1_context.tools.annotate --split "${SPLIT}"
+python -m tools.layer1_context.scripts.annotate --split "${SPLIT}"
 
 echo
 echo "[2/2] post-processing (split=${SPLIT}, workers=${PP_WORKERS})"
-python -m layer1_context.tools.postprocess --split "${SPLIT}" --workers "${PP_WORKERS}"
+python -m tools.layer1_context.scripts.postprocess --split "${SPLIT}" --workers "${PP_WORKERS}"
 
 ELAPSED=$(( $(date +%s) - START ))
 echo

@@ -180,29 +180,6 @@ referred              = scenario_or([bicycles_in_bike_lane, vehicles_in_bike_lan
 output_scenario(referred, description, log_dir, output_dir)
 ```
 ```python
-# Pattern: "parked X near [curb/sidewalk]" — near_infrastructure('sidewalk')
-# "curb" maps to the 'sidewalk' infrastructure label.
-# Description: vehicle parked on the curb
-vehicles        = get_objects_of_category(log_dir, category='VEHICLE')
-parked_vehicles = stationary(vehicles, log_dir)
-referred        = near_infrastructure(parked_vehicles, log_dir, infrastructure='sidewalk')
-output_scenario(referred, description, log_dir, output_dir)
-```
-```python
-# Pattern: ANTI-PATTERN — replacing near_infrastructure with generic atoms
-# Why bad: when the prompt names a labeled road element (curb/sidewalk/bus_stop/etc),
-# near_infrastructure(label) is the direct mapping. Replacing with
-# scenario_not(on_road) + in_drivable_area changes semantics.
-# # Description: vehicle parked on the curb  (BAD)
-# vehicles    = get_objects_of_category(log_dir, category='VEHICLE')
-# parked      = stationary(vehicles, log_dir)
-# not_on_road = scenario_not(on_road)(parked, log_dir)
-# in_da       = in_drivable_area(parked, log_dir)
-# referred    = scenario_and([not_on_road, in_da])
-# output_scenario(referred, description, log_dir, output_dir)
-# # CORRECT: near_infrastructure(parked, log_dir, infrastructure='sidewalk').
-```
-```python
 # Pattern: temporal compound — filter SUBJECT only; do NOT post-process timestamps.
 # Evaluation handles count/duration alignment.
 # Description: ego vehicle making two right turns within 15 seconds

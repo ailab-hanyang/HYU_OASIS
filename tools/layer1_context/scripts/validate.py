@@ -4,10 +4,10 @@ Walks a log dir (raw or processed) and checks every per-timestamp JSON has:
   - top-level keys = {log_id, timestamp_ns, per_camera, ego}
   - per_camera has all 7 ring cameras
   - each per_camera entry has infra/weather/time_of_day with the exact key sets
-  - ego has the exact 17 key set, all bool
+  - ego has the exact 15 key set, all bool
 
 Usage:
-    PYTHONPATH=. python -m layer1_context.tools.validate <log_dir>
+    PYTHONPATH=. python -m tools.layer1_context.scripts.validate <log_dir>
 """
 
 import argparse
@@ -15,10 +15,10 @@ import json
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from layer1_context.prompts.schema import CAMERA_NAMES, CONTEXT_SCHEMA
+from tools.layer1_context.prompts.schema import CAMERA_NAMES, CONTEXT_SCHEMA
 
 
 _PER_CAMERA_CATEGORIES = ("infra", "weather", "time_of_day")

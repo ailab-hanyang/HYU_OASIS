@@ -38,7 +38,7 @@ from refAV.utils import (
     get_context_annotations, get_ego_annotations, get_turn_direction,
     get_median_polygons, _visual_filter,
     get_subcategory_text_embedding, get_siglip_logit_params, get_category_score_maps)
-from layer1_context.prompts.schema import CONTEXT_SCHEMA as _CONTEXT_SCHEMA
+from tools.layer1_context.prompts.schema import CONTEXT_SCHEMA as _CONTEXT_SCHEMA
 from shapely.geometry import Point as _ShPoint
 from functools import lru_cache
 
@@ -653,13 +653,13 @@ def within_camera_view(
         camera_name: The name of the camera.
 
     Returns:
-        dict: 
+        dict:
             A filtered scenario dictionary where:
-            - Keys are track UUIDs that meet the turning criteria.
+            - Keys are track UUIDs that are within view of the specified camera.
             - Values are nested dictionaries containing timestamps.
 
     Example:
-        red_cars = get_visual_actor(cars, log_dir, 'a red car')
+        front_objects = within_camera_view(vehicles, log_dir, camera_name='ring_front_center')
     """
     track_uuid = track_candidates
 

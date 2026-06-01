@@ -1,10 +1,10 @@
 """Context Layer vLLM Annotation — entry point.
 
 Usage (inside container):
-    PYTHONPATH=. python -m layer1_context.tools.annotate
-    PYTHONPATH=. python -m layer1_context.tools.annotate --config path/to/settings.yaml
-    PYTHONPATH=. python -m layer1_context.tools.annotate --log-ids <id1> <id2> --split val
-    PYTHONPATH=. python -m layer1_context.tools.annotate --dry-run
+    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate
+    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --config path/to/settings.yaml
+    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --log-ids <id1> <id2> --split val
+    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --dry-run
 """
 
 import argparse
@@ -12,18 +12,18 @@ import logging
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from layer1_context.config.loader import load_config
-from layer1_context.annotate.runner import build_annotations
+from tools.layer1_context.config.loader import load_config
+from tools.layer1_context.annotate.runner import build_annotations
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Context Layer vLLM Annotation Pipeline")
     parser.add_argument(
         "--config", default=None,
-        help="Path to settings.yaml (default: layer1_context/config/settings.yaml)",
+        help="Path to settings.yaml (default: tools/layer1_context/config/settings.yaml)",
     )
     parser.add_argument(
         "--log-ids", nargs="*", default=None,

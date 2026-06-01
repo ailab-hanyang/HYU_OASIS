@@ -4,11 +4,15 @@
 
 # --- Path Configurations ---
 paths:
-  output_dir: "output/context_annotations_v4"
+  output_dir: "output/layer1_context"
 
 # --- VLM Model (vLLM engine) ---
 vlm:
-  model_path: "/home/ailab/AILabDataset/03_Shared_Repository/01_CheckPoint/01_huggingface/Qwen/Qwen3.5-122B-A10B-FP8"
+  # Path to the VLM weights — a local checkpoint directory, or a HuggingFace hub id.
+  # REQUIRED: set this to your own model before running. The pipeline was developed
+  # with a large FP8 Qwen MoE checkpoint (internal name: Qwen3.5-122B-A10B-FP8);
+  # substitute the actual path/id of the checkpoint you intend to serve.
+  model_path: "/path/to/your/vlm_checkpoint"
   tensor_parallel_size: 4
   gpu_memory_utilization: 0.85
   max_model_len: 24576

@@ -479,10 +479,12 @@ def get_img_crops(track_uuid, log_dir:Path)->dict[str,dict[int,tuple[int,int,int
     A box is kept when the cuboid is within ``MAX_VIEW_DIST_M`` of ego
     and at least one vertex projects inside the image.
 
-    Disk cache: ``<log_dir>/cache/img_crops/<uuid>.json``. uuid-별 파일이라 pathos
-    워커들이 동시에 다른 uuid 를 써도 race 없음. sm_annotations.feather mtime 보다
-    캐시가 오래됐으면 무효화 (재계산). 이걸로 GT 같이 디스크 영속 캐시가 없던
-    log_dir 에 대해서도 두 번째 시나리오 클릭부터 즉시 응답.
+    Disk cache: ``<log_dir>/cache/img_crops/<uuid>.json``. Since files are
+    per-uuid, pathos workers writing different uuids concurrently never race.
+    The cache is invalidated (recomputed) if it is older than the
+    sm_annotations.feather mtime. This gives instant responses from the second
+    scenario click onward, even for a log_dir that had no persistent disk cache
+    such as GT.
     """
     MAX_VIEW_DIST_M = 50
 
@@ -565,7 +567,7 @@ def get_img_crops(track_uuid, log_dir:Path)->dict[str,dict[int,tuple[int,int,int
             json.dump(serializable, f)
         os.replace(tmp, cache_file)
     except Exception:
-        pass  # 캐시 쓰기 실패해도 평가 자체는 정상 반환
+        pass  # even if the cache write fails, the evaluation still returns normally
 
     return img_crops
 
@@ -584,7 +586,7 @@ def get_context_annotations(log_dir: Path) -> dict[int, dict[str, dict]]:
       - v3 (legacy): top-level ``cameras`` key. Returned as-is.
 
     Reads from the postprocessed split (``{split}_processed``) produced by
-    ``layer1_context/postprocess/pipeline.py``
+    ``tools/layer1_context/postprocess/runner.py``
     """
     context_dir = paths.CONTEXT_ANNOTATIONS_DIR / f"{get_log_split(log_dir)}_processed" / Path(log_dir).name
     if not context_dir.exists():
@@ -1942,10 +1944,10 @@ def parallelize_uuids(
         
         return uuid, timestamps, related
 
-    # Initialize the pool — Pool 크기를 작업량에 맞춰 줄여서 worker 부팅 비용 최소화.
-    # 그리고 UUID 가 _SEQ_THRESHOLD 이하면 아예 ProcessPool 우회 (직렬). 23s → 8s 같은
-    # tiny-workload 비효율 방지. cache_manager.num_processes 는 상한 역할.
-    _SEQ_THRESHOLD = 4   # uuids 가 이 이하이면 직렬 실행
+    # Initialize the pool — shrink the pool size to match the workload to minimize worker startup cost.
+    # And if UUID count is at or below _SEQ_THRESHOLD, bypass ProcessPool entirely (serial). This avoids
+    # tiny-workload inefficiency such as 23s → 8s. cache_manager.num_processes acts as the upper bound.
+    _SEQ_THRESHOLD = 4   # run serially if uuids are at or below this
     n_uuids = len(all_uuids)
 
     if n_uuids <= _SEQ_THRESHOLD:
@@ -2375,13 +2377,13 @@ def get_map(log_dir: Path):
 
 # Median classifier thresholds — validated on 17 holes across val logs
 # 91aa/cae5/f6cc/96dd with 100% accuracy. Hardcoded; not LLM-tunable.
-MEDIAN_NARROW_INSCRIBED_M = 2.5   # 좁은 median은 폭 ≤ 5m
-MEDIAN_WIDE_INSCRIBED_M   = 8.0   # 넓은 boulevard median은 폭 ≤ 16m
-MEDIAN_WIDE_ASPECT        = 3.0   # 넓은 경우엔 길쭉해야 (length/width)
+MEDIAN_NARROW_INSCRIBED_M = 2.5   # a narrow median has width ≤ 5m
+MEDIAN_WIDE_INSCRIBED_M   = 8.0   # a wide boulevard median has width ≤ 16m
+MEDIAN_WIDE_ASPECT        = 3.0   # in the wide case it must be elongated (length/width)
 
 
 def _is_median_hole(hole: _ShPolygon) -> bool:
-    """좁은 hole 또는 폭이 좀 있어도 충분히 길쭉한 hole이면 median으로 본다."""
+    """Treat a hole as a median if it is narrow, or if it is wide but sufficiently elongated."""
     inscribed = _sh_polylabel(hole, tolerance=0.3).distance(hole.boundary)
     if inscribed <= MEDIAN_NARROW_INSCRIBED_M:
         return True
@@ -2396,9 +2398,9 @@ def _is_median_hole(hole: _ShPolygon) -> bool:
 
 @cache_manager.create_cache('get_median_polygons')
 def get_median_polygons(log_dir: Path) -> list:
-    """log의 모든 median polygon (shapely Polygon)을 반환. log당 1회만 계산되어 캐시됨.
+    """Return all median polygons (shapely Polygon) of the log. Computed only once per log and cached.
 
-    drivable area들을 unary_union 한 뒤 interior hole을 추출, 좁거나 길쭉한 hole만 남긴다.
+    Takes the unary_union of the drivable areas, then extracts interior holes, keeping only narrow or elongated holes.
     """
     avm = get_map(log_dir)
     polys = []
@@ -3265,30 +3267,30 @@ def create_mining_pkl(description, scenario, log_dir:Path, output_dir:Path):
     frames = []
     (output_dir / log_id).mkdir(exist_ok=True)
     
-    annotations = read_feather(log_dir / 'sm_annotations.feather') # tracker가 감지한 모든 객체
-    all_uuids = list(annotations['track_uuid'].unique()) # 이 log의 전체 객체 목록
+    annotations = read_feather(log_dir / 'sm_annotations.feather') # all objects detected by the tracker
+    all_uuids = list(annotations['track_uuid'].unique()) # the full list of objects in this log
     ego_poses = get_ego_SE3(log_dir)
 
-    eval_timestamps = get_eval_timestamps(log_dir) # 평가 대상 타임스탬프 목록
+    eval_timestamps = get_eval_timestamps(log_dir) # the list of timestamps to be evaluated
 
-    # 입력:  { 'uuid_V1': [ts_3, ts_4], 'uuid_V2': [ts_5, ts_6] }
-    # 출력:  { ts_3: ['uuid_V1'], ts_4: ['uuid_V1'], ts_5: ['uuid_V2'], ts_6: ['uuid_V2'] }
+    # input:  { 'uuid_V1': [ts_3, ts_4], 'uuid_V2': [ts_5, ts_6] }
+    # output: { ts_3: ['uuid_V1'], ts_4: ['uuid_V1'], ts_5: ['uuid_V2'], ts_6: ['uuid_V2'] }
     referred_objects = swap_keys_and_listed_values(reconstruct_track_dict(scenario))
     
-    # 입력:
+    # input:
     #     {
     #         'uuid_V1': {'uuid_P1': [ts_3, ts_4], 'uuid_P2': [ts_3]},
     #         'uuid_V2': {'uuid_P3': [ts_5, ts_6, ts_7]},
     #     }
 
-    #     출력:
+    #     output:
     #     {
     #         'uuid_V1': {'uuid_P1': [ts_3, ts_4], 'uuid_P2': [ts_3]},
     #         'uuid_V2': {'uuid_P3': [ts_5, ts_6, ts_7]},
     #     }
     relationships = reconstruct_relationship_dict(scenario)
     
-    # 출력: { 'uuid_P1': [ts_3, ts_4], 'uuid_P2': [ts_3], 'uuid_P3': [ts_5, ts_6, ts_7] }
+    # output: { 'uuid_P1': [ts_3, ts_4], 'uuid_P2': [ts_3], 'uuid_P3': [ts_5, ts_6, ts_7] }
     related_objects = swap_keys_and_listed_values(get_related_objects(relationships))
 
     for timestamp in eval_timestamps:

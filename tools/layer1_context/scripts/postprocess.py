@@ -1,18 +1,18 @@
 """CLI entry point for post-processing (smoothing + confirmed-run dilation, 2Hz).
 
 Examples:
-    # default: output/context_annotations_v4/val → .../val_processed
-    PYTHONPATH=. python -m layer1_context.tools.postprocess --split val
+    # default: output/layer1_context/val → .../val_processed
+    PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess --split val
 
     # custom paths / smoothing + dilation knobs
-    PYTHONPATH=. python -m layer1_context.tools.postprocess \\
-        --input-dir output/context_annotations_v4/val \\
-        --output-dir output/context_annotations_v4/val_processed \\
+    PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess \\
+        --input-dir output/layer1_context/val \\
+        --output-dir output/layer1_context/val_processed \\
         --mv-window-size 3 --mv-threshold 0.5 \\
         --dilation-min-run 3 --dilation-step 1
 
     # specific logs, parallel workers
-    PYTHONPATH=. python -m layer1_context.tools.postprocess \\
+    PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess \\
         --split val --workers 8 --log-ids <log_id1> <log_id2>
 """
 
@@ -21,12 +21,12 @@ import logging
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from layer1_context.postprocess.runner import postprocess_split
+from tools.layer1_context.postprocess.runner import postprocess_split
 
-DEFAULT_ROOT = Path("output/context_annotations_v4")
+DEFAULT_ROOT = Path("output/layer1_context")
 
 
 def main() -> None:

@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 from PIL import Image
 from vllm import LLM, SamplingParams
 
-from layer1_context.prompts.schema import (
+from tools.layer1_context.prompts.schema import (
     CONTEXT_SCHEMA,
     EGO_SYSTEM_PROMPT,
     EGO_USER_PROMPT,
@@ -53,7 +53,7 @@ def _coerce_to_schema(parsed: Dict[str, Any]) -> Dict[str, Dict[str, bool]]:
 
 
 def _coerce_ego_schema(parsed: Dict[str, Any]) -> Dict[str, bool]:
-    """Ego output: flat 17-key bool dict."""
+    """Ego output: flat 15-key bool dict."""
     return {k: bool(parsed.get(k, False)) for k in CONTEXT_SCHEMA["ego"]}
 
 
@@ -158,12 +158,12 @@ class VLLMAnnotator:
         """Annotate ego (multi-view) for a batch of timestamps.
 
         Each group is the per-timestamp image paths in EGO_CAMERA_NAMES order.
-        Returns a list of 17-key bool dicts aligned with the input.
+        Returns a list of 15-key bool dicts aligned with the input.
         """
         if not image_groups:
             return []
 
-        from layer1_context.prompts.schema import EGO_CAMERA_NAMES
+        from tools.layer1_context.prompts.schema import EGO_CAMERA_NAMES
         expected = len(EGO_CAMERA_NAMES)
         conversations = []
         for group in image_groups:

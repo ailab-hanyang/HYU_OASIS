@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from layer1_context.annotate.engine import VLLMAnnotator
-from layer1_context.prompts.schema import CAMERA_NAMES, EGO_CAMERA_NAMES
+from tools.layer1_context.annotate.engine import VLLMAnnotator
+from tools.layer1_context.prompts.schema import CAMERA_NAMES, EGO_CAMERA_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,16 @@ def _process_log(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     camera_ts = _camera_timestamps(log_dir)
+    empty_cams = [cam for cam, ts in camera_ts.items() if ts.size == 0]
+    if empty_cams:
+        logger.warning(
+            "Skipping %s/%s: no camera frames found for %s",
+            split, log_id, ", ".join(empty_cams),
+        )
+        return {
+            "log_id": log_id, "split": split,
+            "timestamps": 0, "images": 0, "elapsed": 0.0,
+        }
     tracker_timestamps = _read_tracker_timestamps(tracker_dir, split, log_id)
 
     existing = {int(f.stem) for f in output_dir.glob("*.json")}
