@@ -38,7 +38,7 @@ from refAV.utils import (
     get_context_annotations, get_ego_annotations, get_turn_direction,
     get_median_polygons, _visual_filter,
     get_subcategory_text_embedding, get_siglip_logit_params, get_category_score_maps)
-from tools.layer1_context.prompts.schema import CONTEXT_SCHEMA as _CONTEXT_SCHEMA
+from tools.layer1_context.src.schema import CONTEXT_SCHEMA as _CONTEXT_SCHEMA
 from shapely.geometry import Point as _ShPoint
 from functools import lru_cache
 

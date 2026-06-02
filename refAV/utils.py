@@ -586,7 +586,7 @@ def get_context_annotations(log_dir: Path) -> dict[int, dict[str, dict]]:
       - v3 (legacy): top-level ``cameras`` key. Returned as-is.
 
     Reads from the postprocessed split (``{split}_processed``) produced by
-    ``tools/layer1_context/postprocess/runner.py``
+    ``tools/layer1_context/src/postprocess_runner.py``
     """
     context_dir = paths.CONTEXT_ANNOTATIONS_DIR / f"{get_log_split(log_dir)}_processed" / Path(log_dir).name
     if not context_dir.exists():

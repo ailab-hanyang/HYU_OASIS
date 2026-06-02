@@ -2,17 +2,17 @@
 
 Examples:
     # default: output/layer1_context/val → .../val_processed
-    PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess --split val
+    PYTHONPATH=. python -m tools.layer1_context.postprocess --split val
 
     # custom paths / smoothing + dilation knobs
-    PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess \\
+    PYTHONPATH=. python -m tools.layer1_context.postprocess \\
         --input-dir output/layer1_context/val \\
         --output-dir output/layer1_context/val_processed \\
         --mv-window-size 3 --mv-threshold 0.5 \\
         --dilation-min-run 3 --dilation-step 1
 
     # specific logs, parallel workers
-    PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess \\
+    PYTHONPATH=. python -m tools.layer1_context.postprocess \\
         --split val --workers 8 --log-ids <log_id1> <log_id2>
 """
 
@@ -24,7 +24,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.layer1_context.postprocess.runner import postprocess_split
+from tools.layer1_context.src.postprocess_runner import postprocess_split
 
 DEFAULT_ROOT = Path("output/layer1_context")
 

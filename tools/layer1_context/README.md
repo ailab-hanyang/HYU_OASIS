@@ -29,13 +29,11 @@ raw sensor frames + tracker feather 2Hz timestamps
 
 ## Folder layout
 
-| Folder | Role |
+| Path | Role |
 |---|---|
-| [config/](config/) | `settings.yaml` (model path / vLLM options / input dataset) + `loader.py` (yaml → dict) |
-| [prompts/](prompts/) | `schema.py` — `CONTEXT_SCHEMA` (4 categories, 28 items), `CAMERA_NAMES`, `EGO_CAMERA_NAMES`, and the SYSTEM/USER prompt strings |
-| [annotate/](annotate/) | `engine.py` (vLLM wrapper, `VLLMAnnotator`) + `runner.py` (log iteration, batch splitting, JSON saving) |
-| [postprocess/](postprocess/) | `runner.py` (smoothing+dilation pipeline) + `smoothing.py` (1D bool time-series primitives) |
-| [scripts/](scripts/) | CLI entry points + smoke-test / full-inference `.sh` |
+| [annotate.py](annotate.py) · [postprocess.py](postprocess.py) · [validate.py](validate.py) | CLI entry points (`python -m tools.layer1_context.<name>`) |
+| [config/](config/) | `settings.yaml` (model path / vLLM options / input dataset) |
+| [src/](src/) | `schema.py` (`CONTEXT_SCHEMA`, `CAMERA_NAMES`, prompt strings) · `engine.py` (`VLLMAnnotator`) · `annotate_runner.py` (log iteration, batching, JSON saving) · `postprocess_runner.py` (smoothing+dilation) · `smoothing.py` (1D bool primitives) · `loader.py` (yaml → dict) |
 | [docker/](docker/) | `Dockerfile` + `run_container.sh` (vLLM runtime for the H100 server) |
 
 ## Inference calls (per timestamp)
@@ -85,37 +83,39 @@ bash tools/layer1_context/docker/run_container.sh
 
 All subsequent commands run inside the container, from the repo root (`HYU_OASIS/`).
 
-### 1. Smoke test — infer + postprocess + validate one log
+The whole pipeline (annotate → postprocess → validate) runs via
+[`tools/scripts/run_layer1_context.sh`](../scripts/run_layer1_context.sh).
+Overrides: `SPLIT`, `WORKERS`, `LOGS` (subset of logs), `CONFIG` (alt settings.yaml),
+`SKIP_VALIDATE`.
+
+### 1. Smoke test — one log
 
 ```bash
-bash tools/layer1_context/scripts/test.sh                       # default log_id, val
-bash tools/layer1_context/scripts/test.sh <LOG_ID>
-bash tools/layer1_context/scripts/test.sh <LOG_ID> test
+LOGS="02678d04-cc9f-3148-9f95-1ba66347dff9" bash tools/scripts/run_layer1_context.sh
 ```
 
-Both raw JSON and processed JSON are validated against the schema automatically.
-
-### 2. Full-split inference + postprocess
+### 2. Full-split run
 
 ```bash
-bash tools/layer1_context/scripts/annotate.sh                   # default: val
-bash tools/layer1_context/scripts/annotate.sh val 8             # postprocess with 8 workers
+bash tools/scripts/run_layer1_context.sh                  # whole val split
+WORKERS=8 bash tools/scripts/run_layer1_context.sh        # more postprocess workers
+SKIP_VALIDATE=1 bash tools/scripts/run_layer1_context.sh  # skip the validate stage
 ```
 
 This is a long job, so `tmux`/`nohup` is recommended. On restart after an interruption it
-resumes via the `existing` skip in [annotate/runner.py:91-92](annotate/runner.py#L91-L92).
+resumes via the `existing` skip in [src/annotate_runner.py:91-92](src/annotate_runner.py#L91-L92).
 
 ### 3. Individual steps (as needed)
 
 ```bash
-PYTHONPATH=. python -m tools.layer1_context.scripts.annotate \
+PYTHONPATH=. python -m tools.layer1_context.annotate \
     --log-ids <ID1> <ID2> --split val
-PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --dry-run
+PYTHONPATH=. python -m tools.layer1_context.annotate --dry-run
 
-PYTHONPATH=. python -m tools.layer1_context.scripts.postprocess \
+PYTHONPATH=. python -m tools.layer1_context.postprocess \
     --split val --log-ids <ID> --workers 8
 
-PYTHONPATH=. python -m tools.layer1_context.scripts.validate \
+PYTHONPATH=. python -m tools.layer1_context.validate \
     output/layer1_context/val_processed/<ID>
 ```
 

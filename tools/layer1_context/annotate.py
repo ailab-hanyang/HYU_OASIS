@@ -1,10 +1,10 @@
 """Context Layer vLLM Annotation — entry point.
 
 Usage (inside container):
-    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate
-    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --config path/to/settings.yaml
-    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --log-ids <id1> <id2> --split val
-    PYTHONPATH=. python -m tools.layer1_context.scripts.annotate --dry-run
+    PYTHONPATH=. python -m tools.layer1_context.annotate
+    PYTHONPATH=. python -m tools.layer1_context.annotate --config path/to/settings.yaml
+    PYTHONPATH=. python -m tools.layer1_context.annotate --log-ids <id1> <id2> --split val
+    PYTHONPATH=. python -m tools.layer1_context.annotate --dry-run
 """
 
 import argparse
@@ -15,8 +15,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.layer1_context.config.loader import load_config
-from tools.layer1_context.annotate.runner import build_annotations
+from tools.layer1_context.src.loader import load_config
+from tools.layer1_context.src.annotate_runner import build_annotations
 
 
 def main() -> None:

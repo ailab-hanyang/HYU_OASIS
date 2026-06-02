@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 from PIL import Image
 from vllm import LLM, SamplingParams
 
-from tools.layer1_context.prompts.schema import (
+from tools.layer1_context.src.schema import (
     CONTEXT_SCHEMA,
     EGO_SYSTEM_PROMPT,
     EGO_USER_PROMPT,
@@ -163,7 +163,7 @@ class VLLMAnnotator:
         if not image_groups:
             return []
 
-        from tools.layer1_context.prompts.schema import EGO_CAMERA_NAMES
+        from tools.layer1_context.src.schema import EGO_CAMERA_NAMES
         expected = len(EGO_CAMERA_NAMES)
         conversations = []
         for group in image_groups:

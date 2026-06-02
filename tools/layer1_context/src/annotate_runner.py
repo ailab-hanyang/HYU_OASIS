@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from tools.layer1_context.annotate.engine import VLLMAnnotator
-from tools.layer1_context.prompts.schema import CAMERA_NAMES, EGO_CAMERA_NAMES
+from tools.layer1_context.src.engine import VLLMAnnotator
+from tools.layer1_context.src.schema import CAMERA_NAMES, EGO_CAMERA_NAMES
 
 logger = logging.getLogger(__name__)
 

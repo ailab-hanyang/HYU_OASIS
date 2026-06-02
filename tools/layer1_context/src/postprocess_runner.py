@@ -23,11 +23,11 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Tuple
 
-from tools.layer1_context.postprocess.smoothing import (
+from tools.layer1_context.src.smoothing import (
     dilate_confirmed_runs,
     majority_vote_smoothing,
 )
-from tools.layer1_context.prompts.schema import CAMERA_NAMES, CONTEXT_SCHEMA
+from tools.layer1_context.src.schema import CAMERA_NAMES, CONTEXT_SCHEMA
 
 logger = logging.getLogger(__name__)
 
