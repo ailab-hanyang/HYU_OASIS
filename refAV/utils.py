@@ -842,6 +842,12 @@ _VLM_SYSTEM = (
     "lacking the specific described feature, answer false. Output only a compact JSON object."
 )
 
+class VlmServerError(RuntimeError):
+    """A VLM request could not produce a verdict — server down/unreachable, an
+    HTTP/timeout error, or a reply without a parseable {"match": ...}. Raised so a
+    down fleet aborts the run loudly instead of silently degrading every track to
+    "no match". Health-check first with tools/vlm_server/check_vllm.py."""
+
 def _vlm_endpoints():
     raw = os.environ.get(
         "REFAV_VLM_ENDPOINTS",
@@ -864,7 +870,10 @@ def _vlm_crop_b64(uuid, log_dir):
     img.save(buf, format="JPEG", quality=90)
     return _b64.b64encode(buf.getvalue()).decode("ascii")
 
-def _vlm_call(b64, user_text, endpoint):
+def _vlm_call(b64, user_text, endpoints, start_idx=0):
+    
+    _VLM_TIMEOUT = 30          # per-request seconds (a 20-token classify is fast)
+
     payload = {
         "model": os.environ.get("REFAV_VLM_MODEL", "qwen3.6-35b"),
         "temperature": 0.0, "max_tokens": 20,
@@ -877,20 +886,39 @@ def _vlm_call(b64, user_text, endpoint):
             ]},
         ],
     }
-    req = _urlreq.Request(endpoint, data=json.dumps(payload).encode(),
-                          headers={"Content-Type": "application/json"})
-    try:
-        with _urlreq.urlopen(req, timeout=120) as r:
-            txt = json.loads(r.read())["choices"][0]["message"]["content"]
-    except Exception:
-        return None
-    a, b = txt.find("{"), txt.rfind("}")
-    if a != -1 and b > a:
+    data = json.dumps(payload).encode()
+    n = len(endpoints)
+    transport_errors = []
+    for k in range(n):
+        endpoint = endpoints[(start_idx + k) % n]
+        req = _urlreq.Request(endpoint, data=data, headers={"Content-Type": "application/json"})
         try:
-            return bool(json.loads(txt[a:b + 1]).get("match"))
-        except Exception:
-            return None
-    return None
+            with _urlreq.urlopen(req, timeout=_VLM_TIMEOUT) as r:
+                txt = json.loads(r.read())["choices"][0]["message"]["content"]
+        except Exception as e:
+            transport_errors.append(f"{endpoint}: {e!r}")
+            continue        # fail over to the next replica
+        a, b = txt.find("{"), txt.rfind("}")
+        if a != -1 and b > a:
+            try:
+                return bool(json.loads(txt[a:b + 1]).get("match"))
+            except Exception as e:
+                raise VlmServerError(
+                    f"VLM reply from {endpoint} had no parseable JSON verdict: {txt!r}. "
+                    f"Is thinking mode disabled (chat_template_kwargs enable_thinking=false)? "
+                    f"See tools/vlm_server/README.md 'Troubleshooting'."
+                ) from e
+        raise VlmServerError(
+            f"VLM reply from {endpoint} carried no {{\"match\": ...}} JSON: {txt!r}. "
+            f"Is thinking mode disabled (chat_template_kwargs enable_thinking=false)? "
+            f"See tools/vlm_server/README.md 'Troubleshooting'."
+        )
+    # Every endpoint failed at the transport level -> the whole fleet is down.
+    raise VlmServerError(
+        f"VLM request failed on all {n} endpoint(s): {'; '.join(transport_errors)}. "
+        f"Is the vLLM fleet up and reachable? Verify with tools/vlm_server/check_vllm.py "
+        f"(REFAV_VLM_ENDPOINTS={os.environ.get('REFAV_VLM_ENDPOINTS', 'http://localhost:8000..8003')})."
+    )
 
 def _visual_filter(track_candidates: dict, log_dir: Path, description: str,
                    mode: str, max_workers: int = 16) -> dict:
@@ -922,10 +950,10 @@ def _visual_filter(track_candidates: dict, log_dir: Path, description: str,
         items = [(u, b64) for u, b64 in crops.items() if b64]
         with _ThreadPool(max_workers=max_workers) as ex:
             verdicts = ex.map(
-                lambda iu: (iu[1][0], _vlm_call(iu[1][1], user_text, endpoints[iu[0] % len(endpoints)])),
+                lambda iu: (iu[1][0], _vlm_call(iu[1][1], user_text, endpoints, iu[0] % len(endpoints))),
                 enumerate(items))
-            for u, m in verdicts:
-                cache[ckey(u)] = bool(m) if m is not None else False
+            for u, m in verdicts:        # _vlm_call raises on failure -> m is a real verdict
+                cache[ckey(u)] = bool(m)
         for u in todo:
             cache.setdefault(ckey(u), False)
         # try:

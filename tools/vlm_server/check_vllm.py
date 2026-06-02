@@ -52,6 +52,19 @@ DEFAULT_ENDPOINTS = (
     "http://localhost:8002,http://localhost:8003"
 )
 
+# Verbatim copy of refAV/utils.py::_VLM_SYSTEM so this smoke test exercises the REAL
+# production system prompt. A green run then implies the atoms' exact request (strict
+# prompt + enable_thinking=False + max_tokens=20) yields parseable JSON -- not merely
+# that the endpoint is reachable. KEEP IN SYNC with refAV/utils.py::_VLM_SYSTEM.
+VLM_SYSTEM = (
+    "You are a precise visual classifier for an autonomous-driving perception dataset. "
+    "Each image is a tight crop from a vehicle's ring camera showing ONE tracked road object; "
+    "the object of interest is at the CENTER of the crop (edge content is context, not the target). "
+    "Judge ONLY the centered object. Be STRICT: answer true ONLY when there is clear, unambiguous "
+    "visual evidence. If it is occluded, too small/blurry, ambiguous, or merely a generic object "
+    "lacking the specific described feature, answer false. Output only a compact JSON object."
+)
+
 
 def parse_endpoints(raw):
     return [u.strip().rstrip("/") for u in raw.split(",") if u.strip()]
@@ -67,10 +80,13 @@ def check_health(base, timeout):
 
 
 def round_trip(base, model, timeout):
-    """Mirror refAV/utils.py::_vlm_call exactly: ONE image per request, thinking off.
+    """Mirror refAV/utils.py::_vlm_call exactly: ONE image per request, thinking off,
+    and the SAME strict production system prompt (VLM_SYSTEM) + actor-shaped question.
 
     The real call sends a single tight crop per track, so this sends one image too
-    (temperature=0, max_tokens=20, chat_template_kwargs enable_thinking=False).
+    (temperature=0, max_tokens=20, chat_template_kwargs enable_thinking=False). Using
+    the real system prompt means a model/template that reasons past max_tokens under
+    the strict prompt (and never emits the JSON) is caught here, not mid-run.
     """
     payload = {
         "model": model,
@@ -78,12 +94,12 @@ def round_trip(base, model, timeout):
         "max_tokens": 20,
         "chat_template_kwargs": {"enable_thinking": False},
         "messages": [
-            {"role": "system",
-             "content": "You are a precise visual classifier. Output only a compact JSON object."},
+            {"role": "system", "content": VLM_SYSTEM},
             {"role": "user", "content": [
                 {"type": "text",
-                 "text": "Does the centered object in this crop clearly look predominantly red? "
-                         'Respond with ONLY a JSON object: {"match": true} or {"match": false}.'},
+                 "text": ("Does the centered object in this crop clearly show a predominantly red "
+                          "colored surface? Answer true ONLY if there is definite, clearly visible "
+                          'evidence. Respond with ONLY a JSON object: {"match": true} or {"match": false}.')},
                 {"type": "image_url",
                  "image_url": {"url": "data:image/jpeg;base64," + TEST_IMAGE_B64}},
             ]},
