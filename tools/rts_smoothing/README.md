@@ -43,7 +43,7 @@ be the **output (step 3)** of [`tools/multi_class_tracking`](../multi_class_trac
 
 ### Correct execution order
 ```bash
-cd /home/ailab/AILabDataset/03_Shared_Repository/jeongwoo/HYU_RefAV
+cd /path/to/HYU_OASIS
 
 # 1) (pre) multi_class_tracking — IMM-filter-based re-tracking
 #    config: tracking.motion_model=imm  (sidecar auto-generated via save_smooth_inputs default true)
@@ -113,7 +113,7 @@ Uses `src_tracker`/`dst_tracker`/`split`/`smoother_mode` from config (`config/co
 CLI args take precedence if given (**priority: CLI > config > default**).
 
 ```bash
-cd /home/ailab/AILabDataset/03_Shared_Repository/jeongwoo/HYU_RefAV
+cd /path/to/HYU_OASIS
 
 # config as-is (whole split)
 python -m tools.rts_smoothing.apply_rts_smoothing --force

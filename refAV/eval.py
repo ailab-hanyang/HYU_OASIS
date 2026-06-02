@@ -14,7 +14,7 @@ import shutil
 
 from av2.evaluation.scenario_mining.eval import evaluate
 from av2.datasets.sensor.splits import TEST, TRAIN, VAL
-from refAV.utils import cache_manager, get_log_split
+from refAV.utils import cache_manager, get_log_split, VlmServerError
 from refAV.code_generation import predict_scenario_from_description, build_context
 from refAV.atomic_functions import *
 import refAV.paths as paths
@@ -360,6 +360,12 @@ def create_refprog_prediction(
             scenario = f.read()
             execute_scenario(scenario, description, log_dir, output_dir)
 
+    except VlmServerError:
+        # Infra failure (VLM server down/unreachable), NOT buggy LLM code: don't
+        # waste a code-fix retry or fall back to an empty prediction — re-raise so
+        # the run aborts loudly. Health-check the fleet (tools/vlm_server), rerun.
+        raise
+
     except Exception as e:
         # Sometimes the LLM will generate scenario definitions with bugs
         print(f"Error predicting {description} for log_id {log_id}: {e}")
@@ -547,9 +553,9 @@ if __name__ == "__main__":
         exp_config = yaml.safe_load(file)
 
 
-    # confidence-threshold 변형 (...._thr<NNN>) — yml 에는 등록되어 있지 않으므로
-    #    suffix 떼어내 base 를 찾고, tracker / exp_name 에 같은 suffix 를 다시 붙여
-    #    storage 경로와 tracker dir 가 모두 필터링 변형을 가리키게 함.
+    # confidence-threshold variant (...._thr<NNN>) — since it is not registered in the yml,
+    #    strip the suffix to find the base, then re-append the same suffix to tracker / exp_name
+    #    so that both the storage path and the tracker dir point at the filtering variant.
     import re
     thr_suffix = ""
     if args.exp_name not in exp_config:
@@ -570,9 +576,9 @@ if __name__ == "__main__":
     llm_name = exp_config[args.exp_name]["LLM"]
     split = exp_config[args.exp_name]["split"]
 
-    # yml entry 자체의 name 에 "_thr<NNN>" 이 박혀있는 경우도 같은 suffix 사용 (이미 위에서
-    # 떼어낸 thr_suffix 가 있으면 우선). 사용자가 yml 에 _thr 변형 entry 를 직접 추가하면
-    # tracker 필드는 base 로 두고 코드가 자동으로 _thr<NNN> 을 append.
+    # If the yml entry's own name already contains "_thr<NNN>", use the same suffix as well (a
+    # thr_suffix already stripped above takes precedence). If the user adds a _thr variant entry
+    # directly to the yml, leave the tracker field as the base and the code appends _thr<NNN> automatically.
     if not thr_suffix:
         m2 = re.match(r"^(.+?)_(thr\d{3})$", exp_name)
         if m2:
@@ -629,7 +635,7 @@ if __name__ == "__main__":
         np.random.shuffle(prompts)
 
         # Build desc: prefer dispatcher-provided log_index/total_logs (1-based, global).
-        # local_log_idx 는 한 subprocess 안에서 여러 log 가 처리될 때 단조 증가.
+        # local_log_idx increases monotonically when multiple logs are processed within one subprocess.
         if args.log_index is not None and args.total_logs is not None:
             global_log_idx = args.log_index + local_log_idx
             desc = f"log {global_log_idx}/{args.total_logs}"

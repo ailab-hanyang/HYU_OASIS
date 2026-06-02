@@ -43,8 +43,8 @@ def run_parallel_eval(exp_name: str, log_prompts_path: Path, procs_per_task: int
         lpp = json.load(file)
 
     # Build work units grouped by log_id (one work unit = one log_id + its pending prompts).
-    # log_id 단위로 묶는 이유: cache_manager.load_custom_caches() 가 log_id 별 호출이라
-    # 같은 log 의 prompts 는 한 subprocess 에서 처리해야 cache reload 안 함.
+    # Reason for grouping by log_id: cache_manager.load_custom_caches() is called per log_id,
+    # so prompts of the same log must be processed in a single subprocess to avoid cache reloads.
     print("Checking which log_id/prompt pairs need evaluation...")
     work_units = []                              # [(log_id, [prompts...]), ...]
     total_work_items = 0
@@ -82,7 +82,7 @@ def run_parallel_eval(exp_name: str, log_prompts_path: Path, procs_per_task: int
     print(f"Max concurrent subprocesses: {max_concurrent}")
 
     # --- Dynamic Dispatch Loop ---
-    work_queue = deque(work_units)               # 각 원소: (log_id, [prompts...])
+    work_queue = deque(work_units)               # each element: (log_id, [prompts...])
     running = []                                 # [(Popen, temp_file, idx, started_at, log_id, n_prompts), ...]
     finished = 0
     launched = 0
@@ -94,7 +94,7 @@ def run_parallel_eval(exp_name: str, log_prompts_path: Path, procs_per_task: int
 
     try:
         while work_queue or running:
-            # 1) 빈 슬롯 채움
+            # 1) Fill empty slots
             while work_queue and len(running) < max_concurrent:
                 log_id, prompts = work_queue.popleft()
                 launched += 1
@@ -151,7 +151,7 @@ def run_parallel_eval(exp_name: str, log_prompts_path: Path, procs_per_task: int
                     f"| queue: {len(work_queue)} logs / {queued_prompts} prompts"
                 )
 
-            # 2) 끝난 것 회수
+            # 2) Reap finished ones
             still_running = []
             any_finished = False
             for proc, temp_file_path, idx, t0, log_id, n_prompts in running:
@@ -193,14 +193,14 @@ def run_parallel_eval(exp_name: str, log_prompts_path: Path, procs_per_task: int
                         )
             running = still_running
 
-            # 3) 아무도 안 끝났으면 짧게 sleep (busy loop 방지)
+            # 3) If none finished, sleep briefly (to avoid a busy loop)
             if not any_finished and running:
                 time.sleep(0.3)
 
         print(f"\nAll parallel tasks finished. ({finished}/{total_units} units)")
 
     finally:
-        # KeyboardInterrupt 등 비정상 종료 시 cleanup
+        # Cleanup on abnormal termination such as KeyboardInterrupt
         if running:
             print("\nTerminating remaining subprocesses...", file=sys.stderr)
             for proc, _, _, _, _, _ in running:

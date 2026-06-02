@@ -36,7 +36,7 @@ then point `src_tracker` at it. (The config's `src_tracker: Le3DE2E_Tracking_ego
 
 ### Full pipeline order
 ```bash
-cd /home/ailab/AILabDataset/03_Shared_Repository/jeongwoo/HYU_RefAV
+cd /path/to/HYU_OASIS
 
 # 1) (pre) ego offset — rts_smoothing package. EGO box rear-axle→body-center offset
 #    Le3DE2E_Tracking → Le3DE2E_Tracking_ego
@@ -114,7 +114,7 @@ tools/multi_class_tracking/
 ## 3. Running
 
 ```bash
-cd /home/ailab/AILabDataset/03_Shared_Repository/jeongwoo/HYU_RefAV
+cd /path/to/HYU_OASIS
 
 # config single log
 python -m tools.multi_class_tracking.apply_tracking
@@ -180,5 +180,3 @@ python -m tools.multi_class_tracking.apply_tracking \
 ## 6. Related tools
 
 - **`tools/rts_smoothing`** : applies backward smoothing (RTS/IMM) to this output ([../rts_smoothing/README.md](../rts_smoothing/README.md)).
-- **`tools/output_verification/server.py`** + `visualization/3d_perception/viewer.html` : BEV viewer +
-  live Tracking/Smoothing tuning.

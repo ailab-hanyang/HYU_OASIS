@@ -599,8 +599,10 @@ if __name__ == "__main__":
         "category":category_local
     }
     
+    # NOTE: tracking_results_path below is an example path from the original
+    # nuPrompt evaluation setup. Update it to your own nuScenes tracker output.
     nuscenes_tracking_to_av2_tracking(
-        tracking_results_path=Path('/home/crdavids/Trinity-Sync/PF-Track/ckpts/PF-Track-Models/f3_fullres_all/track_ext_5/results_nusc_tracking.json'), 
+        tracking_results_path=Path('/home/crdavids/Trinity-Sync/PF-Track/ckpts/PF-Track-Models/f3_fullres_all/track_ext_5/results_nusc_tracking.json'),
         output_path=Path('output/tracker_predictions/PFTrack_FullRes_Tracking/nuprompt_val')
     )
 

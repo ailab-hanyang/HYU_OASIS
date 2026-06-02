@@ -1,5 +1,5 @@
 """
-Multi-agent (Function Selector + Code Writer) pipeline for HYU_RefAV.
+Multi-agent (Function Selector + Code Writer) pipeline for HYU_OASIS.
 
 Two-stage prompting:
   Stage 1 - Selector: prompt + auto INDEX + few-shot -> JSON with selected_funcs.
@@ -477,9 +477,9 @@ def parse_selector_json(text: str, atomic_py: Path = ATOMIC_PY) -> Optional[dict
       5) Route every kept function to its true layer per LAYER_OF (silent
          re-route for Selector mis-placement — keeps the pipeline robust).
       6) If 0 functions remain across all layers -> return None.
-      7) Per-layer COMMON_HELPERS_BY_LAYER augment when total < 3 or
+      7) Per-layer COMMON_HELPERS_BY_LAYER augment when total < 5 or
          confidence in {low, medium}.
-      8) Per-layer cap of 8 (slice + downgrade confidence to low).
+      8) Per-layer cap of 6 (slice + downgrade confidence to low).
     """
     if not text:
         return None

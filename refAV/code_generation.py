@@ -269,12 +269,12 @@ def predict_scenario_from_description(
     if not custom_context:
         custom_context = build_context()
 
-    # build_context() 결과는 이미 한 번의 str.format() 을 거쳤기 때문에 그 안에 atomic_functions.txt
-    # 의 literal 중괄호 (`{ track_uuid: {...} }` 같은 docstring 예시) 가 single brace 로 남아있다.
-    # 여기서 또 .format() 을 호출하면 그 single brace 가 placeholder 로 잘못 해석되어 KeyError 가
-    # 발생한다 (예: ' track_uuid'). 우리가 채워야 할 placeholder 는 오직 하나
-    # ({natural_language_description}) 이므로, format 대신 단순 .replace() 로 치환하면 다른
-    # brace 가 충돌을 일으키지 않는다.
+    # The build_context() result has already been through one str.format() pass, so the literal
+    # braces from atomic_functions.txt (docstring examples like `{ track_uuid: {...} }`) remain
+    # as single braces. Calling .format() again here would misinterpret those single braces as
+    # placeholders and raise a KeyError (e.g. ' track_uuid'). Since the only placeholder we need
+    # to fill is one ({natural_language_description}), using a simple .replace() instead of format
+    # avoids any conflict with the other braces.
     prompt = custom_context.replace(
         "{natural_language_description}", natural_language_description
     )
@@ -326,19 +326,20 @@ def predict_scenario_google(prompt, model_name):
 
 
 def _resolve_anthropic_model_id(name: str) -> str:
-    """experiments.yml 의 `LLM:` 필드는 .txt 캐시 디렉토리 이름과 API 모델 ID 를
-    겸하는데, 실험 variant 가 길게 붙은 경우 (예:
-    `claude-sonnet-4-6-260519-ego-L1v2-p6-yawfix-...-reversing`)
-    그대로 Anthropic API 에 보내면 404 NotFoundError. 디렉토리 이름은 그대로 두고
-    API 호출 직전에 canonical 모델 ID 만 추출한다.
+    """The `LLM:` field in experiments.yml serves as both the .txt cache directory name and the
+    API model ID. When an experiment variant has a long suffix appended (e.g.
+    `claude-sonnet-4-6-260519-ego-L1v2-p6-yawfix-...-reversing`),
+    sending it as-is to the Anthropic API results in a 404 NotFoundError. We keep the directory
+    name unchanged and extract only the canonical model ID right before the API call.
 
-    매칭 규칙:
-      1. `claude-N-M-(sonnet|opus|haiku)-YYYYMMDD`     — 옛 dated naming
-         예) claude-3-5-sonnet-20241022, claude-3-7-sonnet-20250219
-      2. `claude-(sonnet|opus|haiku)-N-M(-YYYYMMDD)?`  — 새 naming
-         예) claude-sonnet-4-6, claude-sonnet-4-5-20250929, claude-haiku-4-5-20251001
+    Matching rules:
+      1. `claude-N-M-(sonnet|opus|haiku)-YYYYMMDD`     — old dated naming
+         e.g. claude-3-5-sonnet-20241022, claude-3-7-sonnet-20250219
+      2. `claude-(sonnet|opus|haiku)-N-M(-YYYYMMDD)?`  — new naming
+         e.g. claude-sonnet-4-6, claude-sonnet-4-5-20250929, claude-haiku-4-5-20251001
 
-    위 prefix 까지만 잘라 반환. 매칭 안 되면 입력 그대로 (— 에러는 API 가 알려줌).
+    Return only up to the above prefix. If there is no match, return the input as-is (— any error
+    will be reported by the API).
     """
     import re
     # 1) old (digit-major-minor-family-date)
@@ -361,30 +362,30 @@ def predict_scenario_anthropic(prompt, model_name):
         # api_key="my_api_key",
     )
 
-    # variant suffix (.txt 디렉토리 이름) 를 떼어내고 canonical 모델 ID 만 API 에 전달.
+    # Strip off the variant suffix (.txt directory name) and pass only the canonical model ID to the API.
     api_model = _resolve_anthropic_model_id(model_name)
     if api_model != model_name:
         print(f"[anthropic] mapped LLM dir name → API model: {model_name!r} → {api_model!r}")
 
-    # Opus 4.7/4.8 등 reasoning 계열 모델은 `temperature` 가 deprecated —
-    # API 가 400 BadRequest 로 거절함 (실측: "`temperature` is deprecated for this model.").
-    # 이전 Opus(4.6 이하)·Sonnet·Haiku·옛 Claude 는 temperature 를 받으므로 model 이름으로 분기.
+    # For reasoning-family models such as Opus 4.7/4.8, `temperature` is deprecated —
+    # the API rejects it with a 400 BadRequest (observed: "`temperature` is deprecated for this model.").
+    # Earlier Opus (4.6 and below), Sonnet, Haiku, and old Claude models accept temperature, so branch on the model name.
     create_kwargs = {
         "model":      api_model,
         "max_tokens": 4096,
         "messages":   [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
     }
-    # 알려진 deprecated 모델은 처음부터 temperature 를 빼서 헛호출(400→재시도)을 막는다.
-    # (목록에 없는 모델이 거절하더라도 아래 BadRequestError 핸들러가 최종 안전망.)
+    # For known deprecated models, omit temperature from the start to avoid a wasted call (400 → retry).
+    # (Even if a model not on the list rejects it, the BadRequestError handler below is the final safety net.)
     TEMPERATURE_DEPRECATED = ("opus-4-7", "opus-4-8")
     if not any(tag in api_model for tag in TEMPERATURE_DEPRECATED):
-        # Sonnet / Haiku / 이전 Opus / 옛 Claude 는 temperature 받음.
+        # Sonnet / Haiku / earlier Opus / old Claude accept temperature.
         # [FIX] temperature 0.5 -> 0.0 to make code generation deterministic
         create_kwargs["temperature"] = 0.0
         
-    # 429 (RateLimitError) / 529 (overloaded) 시 지수 backoff 으로 재시도.
-    # org-level token-per-minute 한도(2M tpm)를 자주 친다 — 60s 후엔 윈도우가 리셋되므로
-    # 최소 60s 대기. 재시도마다 ×1.7, 최대 600s 로 캡.
+    # On 429 (RateLimitError) / 529 (overloaded), retry with exponential backoff.
+    # We frequently hit the org-level token-per-minute limit (2M tpm) — since the window resets after 60s,
+    # wait at least 60s. Multiply by ×1.7 on each retry, capped at 600s.
     max_retries = 12
     base_delay = 60.0
     for attempt in range(max_retries + 1):
@@ -392,11 +393,11 @@ def predict_scenario_anthropic(prompt, model_name):
             message = client.messages.create(**create_kwargs)
             break
         except anthropic.BadRequestError as e:
-            # `temperature is deprecated for this model` 같은 케이스 — temperature 빼고 재시도.
-            # (이미 뺀 상태에서 또 BadRequest 면 다른 이슈 → raise)
+            # Cases like `temperature is deprecated for this model` — remove temperature and retry.
+            # (If a BadRequest still occurs after it has already been removed, it's a different issue → raise)
             if "temperature" in create_kwargs and "temperature" in str(getattr(e, "message", e)):
                 create_kwargs.pop("temperature", None)
-                print(f"[anthropic 400] temperature deprecated — model={api_model!r}, 빼고 재시도")
+                print(f"[anthropic 400] temperature deprecated — model={api_model!r}, removing and retrying")
                 continue
             raise
         except (anthropic.RateLimitError, anthropic.APIStatusError) as e:

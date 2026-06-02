@@ -65,6 +65,9 @@ if __name__ == "__main__":
     tracker = exp_config[exp_name]["tracker"]
     split = exp_config[exp_name]["split"]
 
+    # NOTE: the absolute paths below are example paths from the original nuPrompt
+    # evaluation setup. Update them to point at your own nuScenes/nuPrompt tracker
+    # outputs before running this optional conversion script.
     nuscenes_tracker_path = Path('/home/crdavids/Trinity-Sync/PF-Track/ckpts/PF-Track-Models/f3_fullres_all/track_ext_5/results_nusc_tracking.json')
     #nuscenes_tracker_path = Path('/home/crdavids/Trinity-Sync/StreamPETR/tracking_results.json')
 

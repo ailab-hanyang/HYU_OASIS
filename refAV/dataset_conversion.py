@@ -25,15 +25,16 @@ from refAV.paths import AV2_DATA_DIR, SM_DATA_DIR
 from refAV.utils import get_ego_SE3, get_log_split
 
 
-# AV2 ego-frame 원점은 rear axle. EGO_VEHICLE 박스의 정상 중심 위치는 body center
-# (= rear axle + ~1.422m 전방, +0.25m 위). 기본 add_ego_to_annotation 이 (0,0,0)
-# 으로 고정해 1.42m 어긋남 → ego 관련 프롬프트 HOTA 가 ~5/19=0.263 으로 깎이는 버그
-# 발생. tracker 이름이 "_ego" 로 끝나면 body-center offset 을 사용.
+# The AV2 ego-frame origin is the rear axle. The correct center of the EGO_VEHICLE
+# box is the body center (= rear axle + ~1.422m forward, +0.25m up). The default
+# add_ego_to_annotation fixes it to (0,0,0), causing a 1.42m offset -> a bug where
+# ego-related prompt HOTA is reduced to ~5/19=0.263. If the tracker name ends with
+# "_ego", the body-center offset is used.
 EGO_REAR_AXLE_OFFSET = (0.0, 0.0, 0.0)
 EGO_BODY_CENTER_OFFSET = (1.422, 0.0, 0.25)  # AV2 Ford Fusion convention
 
 
-# 트래커 데이터(3D BBOX)만 분리, 아직 Referred 객체 처리 전
+# Separates only the tracker data (3D BBOX); referred objects are not yet processed
 def separate_scenario_mining_annotations(input_feather_path, base_annotation_dir):
     """
     Converts a feather file containing log data into individual feather files.
@@ -374,7 +375,7 @@ def add_ego_to_annotation(
 def thr_tag(score_threshold: float) -> str:
     """0.11 → 'thr011', 0.05 → 'thr005', 0.5 → 'thr050'.
 
-    int(round(thr*100)) 을 3자리 zero-pad. tracker / experiment dir 이름 suffix 로 사용.
+    Zero-pads int(round(thr*100)) to 3 digits. Used as a suffix for tracker / experiment dir names.
     """
     return f"thr{int(round(score_threshold * 100)):03d}"
 
@@ -385,13 +386,14 @@ def filter_tracker_feathers_by_score(
     split: str,
     score_threshold: float,
 ) -> int:
-    """src/<split>/<log>/sm_annotations.feather 행 중 score >= threshold 만 남겨
-    dst/<split>/<log>/sm_annotations.feather 로 저장.
+    """Keeps only rows with score >= threshold from src/<split>/<log>/sm_annotations.feather
+    and saves them to dst/<split>/<log>/sm_annotations.feather.
 
-    이미 dst feather 가 있으면 건너뜀 (idempotent). EGO_VEHICLE 행은 score=1.0 이라
-    필터를 자동 통과. score 컬럼이 없는 feather (예: 순수 GT) 는 모든 행 그대로 복사.
+    Skips if the dst feather already exists (idempotent). EGO_VEHICLE rows have score=1.0,
+    so they pass the filter automatically. Feathers without a score column (e.g. pure GT)
+    have all rows copied as-is.
 
-    Returns: 새로 만든 feather 개수.
+    Returns: the number of newly created feathers.
     """
     src_split = src_tracker_dir / split
     if not src_split.exists():
@@ -419,14 +421,14 @@ def filter_tracker_feathers_by_score(
 def mirror_tracker_caches(src_tracker_dir: Path, dst_tracker_dir: Path, split: str) -> int:
     """src_tracker_dir/<split>/<log>/cache/  ←symlink←  dst_tracker_dir/<split>/<log>/cache/
 
-    color_cache + track crops 는 tracker 출력의 비-EGO 박스에서 파생되므로,
-    EGO offset 만 다른 _ego 변형은 동일한 cache 를 공유할 수 있다. SigLIP 색상
-    분류 파이프라인이 가장 무겁기 때문에 (~수십 분/log), symlink 로 재생성을
-    피하면 시간 + 디스크 둘 다 절약.
+    color_cache + track crops are derived from the non-EGO boxes of the tracker output,
+    so _ego variants that differ only in the EGO offset can share the same cache. Since the
+    SigLIP color classification pipeline is the heaviest stage (~tens of minutes/log), avoiding
+    regeneration via symlink saves both time and disk.
 
-    이미 dst 에 cache/ (regular dir 든 symlink 든) 있으면 건너뛴다.
+    Skips if dst already has cache/ (whether a regular dir or a symlink).
 
-    Returns: 새로 만든 symlink 개수.
+    Returns: the number of newly created symlinks.
     """
     src_split = src_tracker_dir / split
     if not src_split.exists():
@@ -440,11 +442,11 @@ def mirror_tracker_caches(src_tracker_dir: Path, dst_tracker_dir: Path, split: s
         if not src_cache.exists():
             continue
         dst_cache = dst_tracker_dir / split / log_dir.name / "cache"
-        # exists() 는 broken symlink 면 False, lexists() 는 broken symlink 도 True
+        # exists() returns False for a broken symlink, while lexists() returns True even for a broken symlink
         if dst_cache.exists() or dst_cache.is_symlink():
             continue
         dst_cache.parent.mkdir(parents=True, exist_ok=True)
-        # 절대경로 symlink — base tracker dir 를 다른 곳으로 옮겨도 안 깨지게.
+        # Absolute-path symlink -- so it does not break even if the base tracker dir is moved elsewhere.
         dst_cache.symlink_to(src_cache.resolve())
         linked += 1
     return linked
@@ -537,7 +539,7 @@ def convert_log_prompt_df(
 
             ego_coords = track_df[["tx_m", "ty_m", "tz_m"]].to_numpy()
             size = track_df[["length_m", "width_m", "height_m"]].to_numpy()
-            translation_m = ego_to_city.transform_from(ego_coords) # ego 좌표를 city 좌표로 변환
+            translation_m = ego_to_city.transform_from(ego_coords) # Convert ego coordinates to city coordinates
             yaw = Rotation.from_matrix(
                 ego_to_city.compose(cuboid.dst_SE3_object).rotation
             ).as_euler("zxy")[0]
