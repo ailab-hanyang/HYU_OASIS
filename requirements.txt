@@ -1,25 +1,53 @@
+# HYU_OASIS Python dependencies.  Recommended: Python 3.10 (Conda).
+#   conda create -n oasis python=3.10 && conda activate oasis
+#   pip install -r requirements.txt
+#   export PYTHONPATH=.            # run all commands from the repo root
+#
+# torch/torchvision are intentionally NOT version-pinned: install the build that
+# matches your CUDA (see https://pytorch.org). vLLM (tools/scene_context_extraction,
+# tools/vlm_server) is provided by its own container image, not installed here.
+
+# --- core: Argoverse2 devkit (scenario-mining fork) + eval ---
 git+https://github.com/CainanD/av2-api-sm.git
 git+https://github.com/JonathonLuiten/TrackEval.git
-anthropic
-transformers
-accelerate
-google-genai
-pathos
-ipykernel
-huggingface_hub
-pycocotools
-tabulate
-
-torchvision
 numpy
+pandas
+scipy
+tqdm
+matplotlib
 Pillow
 pyyaml
 pyarrow
 shapely>=2.0
+tabulate
+pycocotools
+pathos
+ipykernel
 
-#Needed for visualizations
+# --- deep learning (match your CUDA; torchvision pulls a compatible torch) ---
+torch
+torchvision
+transformers
+accelerate
+huggingface_hub
+
+# --- LLM providers for scenario code generation (refAV/code_generation.py) ---
+anthropic
+google-genai
+openai
+python-dotenv
+
+# --- visualization: required only if you import refAV/visualization.py ---
 #pyvista
 #vtk
 #imageio
 #imageio-ffmpeg
 #--extra-index-url https://wheels.vtk.org vtk-egl
+
+# --- baselines/ only (install per baseline as needed) ---
+#opencv-python    # baselines/groundingSAM
+#scikit-learn     # baselines
+#nltk             # baselines/ReferGPT
+#regex            # baselines/groundingSAM
+#rich             # baselines/groundingSAM
+# CLIP, SAM2, GroundingDINO: install from their upstream repos (see baselines/groundingSAM)

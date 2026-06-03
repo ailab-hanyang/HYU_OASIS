@@ -1,0 +1,42 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Scene Context Extraction — per-frame scene-context labels.
+# Usage/structure: tools/scene_context_extraction/README.md
+# Sections: [paths] → [vlm] engine → [inference] → [dataset] → [run]
+# Defaults reproduce our run; set the paths (model_path, data_dir, tracker_dir) to your own.
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── [paths] output ──────────────────────────────────────────────────────────
+paths:
+  output_dir: "output/scene_context"     # <split>{,_processed}/<log>/<ts>.json
+
+# ── [vlm] weights + vLLM engine ─────────────────────────────────────────────
+vlm:
+  # Reference model: Qwen3.5-122B-A10B-FP8
+  model_path: "/path/to/your/vlm_checkpoint"
+  tensor_parallel_size: 4                  # GPUs per replica
+  gpu_memory_utilization: 0.85
+  max_model_len: 24576
+  max_num_seqs: 64
+  enable_prefix_caching: true
+  trust_remote_code: true
+  mm_processor_kwargs:
+    max_pixels: 3211264                    # 28*28*4096 → ~AV2 1550×2048; ~1024 vision tokens/image
+
+# ── [inference] decoding ────────────────────────────────────────────────────
+inference:
+  max_tokens: 512
+  temperature: 0.0
+  enable_thinking: false                   # Qwen3 reasoning off → direct JSON output
+
+# ── [dataset] inputs (set to your paths) ────────────────────────────────────
+dataset:
+  data_dir: "data/datasets/sensor"                            # AV2 sensor root
+  tracker_dir: "output/tracker_predictions/Le3DE2E_Tracking"  # 2Hz tracker feather source
+  splits:
+    - val
+    - test
+  log_ids: null                            # null = all logs in splits; or list specific IDs
+
+# ── [run] options ───────────────────────────────────────────────────────────
+dry_run: false
+verbose: false

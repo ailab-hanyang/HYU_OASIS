@@ -1,18 +1,18 @@
 """CLI entry point for post-processing (smoothing + confirmed-run dilation, 2Hz).
 
 Examples:
-    # default: output/layer1_context/val → .../val_processed
-    PYTHONPATH=. python -m tools.layer1_context.postprocess --split val
+    # default: output/scene_context/val → .../val_processed
+    PYTHONPATH=. python -m tools.scene_context_extraction.postprocess --split val
 
     # custom paths / smoothing + dilation knobs
-    PYTHONPATH=. python -m tools.layer1_context.postprocess \\
-        --input-dir output/layer1_context/val \\
-        --output-dir output/layer1_context/val_processed \\
+    PYTHONPATH=. python -m tools.scene_context_extraction.postprocess \\
+        --input-dir output/scene_context/val \\
+        --output-dir output/scene_context/val_processed \\
         --mv-window-size 3 --mv-threshold 0.5 \\
         --dilation-min-run 3 --dilation-step 1
 
     # specific logs, parallel workers
-    PYTHONPATH=. python -m tools.layer1_context.postprocess \\
+    PYTHONPATH=. python -m tools.scene_context_extraction.postprocess \\
         --split val --workers 8 --log-ids <log_id1> <log_id2>
 """
 
@@ -24,14 +24,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.layer1_context.src.postprocess_runner import postprocess_split
+from tools.scene_context_extraction.src.postprocess_runner import postprocess_split
 
-DEFAULT_ROOT = Path("output/layer1_context")
+DEFAULT_ROOT = Path("output/scene_context")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Context Layer post-processing (smoothing + confirmed-run dilation)"
+        description="Scene Context post-processing (smoothing + confirmed-run dilation)"
     )
     parser.add_argument(
         "--split", type=str, default="val",

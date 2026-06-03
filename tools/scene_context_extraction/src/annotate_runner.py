@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from tools.layer1_context.src.engine import VLLMAnnotator
-from tools.layer1_context.src.schema import CAMERA_NAMES, EGO_CAMERA_NAMES
+from tools.scene_context_extraction.src.engine import VLLMAnnotator
+from tools.scene_context_extraction.src.schema import CAMERA_NAMES, EGO_CAMERA_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ def build_annotations(config: Dict[str, Any]) -> None:
     total = len(logs)
 
     print("=" * 60)
-    print("  Context Layer vLLM Annotation Pipeline")
+    print("  Scene Context vLLM Annotation Pipeline")
     print(f"  Model: {config['vlm']['model_path']}")
     print(f"  Logs: {total}, Splits: {config['dataset']['splits']}")
     print(f"  Timestamps: tracker feather (2Hz)")

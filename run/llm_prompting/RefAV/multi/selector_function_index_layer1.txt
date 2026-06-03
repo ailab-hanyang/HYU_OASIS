@@ -1,6 +1,6 @@
-- is_weather                             : Returns objects from the log when the scene's weather matches the given condition (rain, snow, clear, cloudy), as labeled by the Context Layer VLM on the front camera.
-- is_time_of_day                         : Returns objects from the log when the scene's time of day matches the given period (daylight, dusk_or_dawn), as labeled by the Context Layer VLM on the front camera.
-- near_infrastructure                    : Filters tracks to timestamps where a Context Layer VLM infrastructure label holds (per-camera visibility or ego-only scene-level).
+- is_weather                             : Returns objects from the log when the scene's weather matches the given condition (rain, snow, clear, cloudy), as labeled by the Scene Context VLM on the front camera.
+- is_time_of_day                         : Returns objects from the log when the scene's time of day matches the given period (daylight, dusk_or_dawn), as labeled by the Scene Context VLM on the front camera.
+- near_infrastructure                    : Filters tracks to timestamps where a Scene Context VLM infrastructure label holds (per-camera visibility or ego-only scene-level).
 - within_camera_view                     : Returns objects that are within view of the specified camera.
 - at_pedestrian_crossing                 : Identifies objects within a certain distance from a pedestrian crossing. A distance of zero means the object is within the boundaries of the pedestrian crossing.
 - on_lane_type                           : Identifies objects on a specific lane type.

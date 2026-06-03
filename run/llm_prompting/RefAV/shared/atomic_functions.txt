@@ -203,7 +203,7 @@ def is_weather(
 ) -> dict:
     """
     Returns objects from the log when the scene's weather matches the given condition,
-    as labeled by the Context Layer VLM on the front camera. Weather is evaluated at
+    as labeled by the Scene Context VLM on the front camera. Weather is evaluated at
     log level: the whole log either matches or does not, determined by a majority vote
     across per-timestamp front-camera annotations.
     
@@ -229,7 +229,7 @@ def is_time_of_day(
 ) -> dict:
     """
     Returns objects from the log when the scene's time of day matches the given period,
-    as labeled by the Context Layer VLM on the front camera. Time of day is evaluated
+    as labeled by the Scene Context VLM on the front camera. Time of day is evaluated
     at log level: the whole log either matches or does not, determined by a majority
     vote across per-timestamp front-camera annotations.
     
@@ -263,7 +263,7 @@ def near_infrastructure(
     ],
 ) -> dict:
     """
-    Filter tracks to timestamps where a Context Layer VLM infrastructure
+    Filter tracks to timestamps where a Scene Context VLM infrastructure
     label holds. The category of ``infrastructure`` (not the track type) drives
     the matching path. Labels are either per-camera (VLM flag in a ring camera)
     or ego-only (scene-level: ego vehicle is on/inside the item); see the
@@ -292,7 +292,7 @@ def near_infrastructure(
     Args:
         track_candidates: Tracks to filter (scenario dictionary).
         log_dir: Path to scenario logs.
-        infrastructure: Context Layer label (see Literal for members). An
+        infrastructure: Scene Context label (see Literal for members). An
             unrecognized label returns an empty result.
     
     Returns:
@@ -1156,7 +1156,7 @@ def near_construction_objects(
     
     Distinct from near_infrastructure(..., 'construction_zone'): this function
     is 3D proximity to physical construction markers (per-track, per-timestamp),
-    whereas near_infrastructure uses Context Layer VLM labels (scene-level).
+    whereas near_infrastructure uses Scene Context VLM labels (scene-level).
     Prefer this for "X near/in construction zone", "X near construction
     cone/barrel", "X at work zone".
     

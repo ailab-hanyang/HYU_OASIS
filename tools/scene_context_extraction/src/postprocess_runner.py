@@ -12,8 +12,8 @@ Operations:
      `dilation_step` frames on each side, compensating VLM's conservative
      entry/exit boundaries.
 
-Inputs:  output/layer1_context/<split>/<log_id>/<ts>.json
-Outputs: output/layer1_context/<split>_processed/<log_id>/<ts>.json
+Inputs:  output/scene_context/<split>/<log_id>/<ts>.json
+Outputs: output/scene_context/<split>_processed/<log_id>/<ts>.json
 Originals are preserved.
 """
 
@@ -23,11 +23,11 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Tuple
 
-from tools.layer1_context.src.smoothing import (
+from tools.scene_context_extraction.src.smoothing import (
     dilate_confirmed_runs,
     majority_vote_smoothing,
 )
-from tools.layer1_context.src.schema import CAMERA_NAMES, CONTEXT_SCHEMA
+from tools.scene_context_extraction.src.schema import CAMERA_NAMES, CONTEXT_SCHEMA
 
 logger = logging.getLogger(__name__)
 

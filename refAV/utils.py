@@ -574,7 +574,7 @@ def get_img_crops(track_uuid, log_dir:Path)->dict[str,dict[int,tuple[int,int,int
 
 @cache_manager.create_cache('get_context_annotations')
 def get_context_annotations(log_dir: Path) -> dict[int, dict[str, dict]]:
-    """Load per-timestamp per-camera Context Layer VLM annotations for one log.
+    """Load per-timestamp per-camera Scene Context VLM annotations for one log.
 
     Returns ``{timestamp_ns: {cam_name: {"infra": {...}, "weather": {...},
     "time_of_day": {...}, ...}}}``.
@@ -586,7 +586,7 @@ def get_context_annotations(log_dir: Path) -> dict[int, dict[str, dict]]:
       - v3 (legacy): top-level ``cameras`` key. Returned as-is.
 
     Reads from the postprocessed split (``{split}_processed``) produced by
-    ``tools/layer1_context/src/postprocess_runner.py``
+    ``tools/scene_context_extraction/src/postprocess_runner.py``
     """
     context_dir = paths.CONTEXT_ANNOTATIONS_DIR / f"{get_log_split(log_dir)}_processed" / Path(log_dir).name
     if not context_dir.exists():
@@ -844,9 +844,9 @@ _VLM_SYSTEM = (
 
 class VlmServerError(RuntimeError):
     """A VLM request could not produce a verdict — server down/unreachable, an
-    HTTP/timeout error, or a reply without a parseable {"match": ...}. Raised so a
-    down fleet aborts the run loudly instead of silently degrading every track to
-    "no match". Health-check first with tools/vlm_server/check_vllm.py."""
+    HTTP/timeout error, or a reply without a parseable {"match": ...}. The visual
+    atoms raise it to abort the run loudly rather than pass every track as
+    "no match". Health-check first with tools/vlm_server/check_connection.py."""
 
 def _vlm_endpoints():
     raw = os.environ.get(
@@ -916,7 +916,7 @@ def _vlm_call(b64, user_text, endpoints, start_idx=0):
     # Every endpoint failed at the transport level -> the whole fleet is down.
     raise VlmServerError(
         f"VLM request failed on all {n} endpoint(s): {'; '.join(transport_errors)}. "
-        f"Is the vLLM fleet up and reachable? Verify with tools/vlm_server/check_vllm.py "
+        f"Is the vLLM fleet up and reachable? Verify with tools/vlm_server/check_connection.py "
         f"(REFAV_VLM_ENDPOINTS={os.environ.get('REFAV_VLM_ENDPOINTS', 'http://localhost:8000..8003')})."
     )
 
@@ -932,37 +932,18 @@ def _visual_filter(track_candidates: dict, log_dir: Path, description: str,
         user_text = (f'Does the centered object in this crop clearly match this appearance/behavior: '
                      f'"{description}"? Answer true ONLY if it is definitely, clearly visible in this '
                      'single frame. Respond with ONLY a JSON object: {"match": true} or {"match": false}.')
-    cache_path = Path(log_dir) / "cache" / "visual_verdicts.json"
-    cache = {}
-    # if cache_path.exists():
-    #     try:
-    #         cache = json.load(open(cache_path))
-    #     except Exception:
-    #         cache = {}
-    def ckey(u):
-        return f"{mode}|{description}|{u}"
-    todo = [u for u in track_candidates if ckey(u) not in cache]
-    if todo:
-        get_best_crop(str(todo[0]), log_dir)          # warm per-log crop cache before threads
-        endpoints = _vlm_endpoints()
-        with _ThreadPool(max_workers=max_workers) as ex:
-            crops = dict(ex.map(lambda u: (u, _vlm_crop_b64(u, log_dir)), todo))
-        items = [(u, b64) for u, b64 in crops.items() if b64]
-        with _ThreadPool(max_workers=max_workers) as ex:
-            verdicts = ex.map(
-                lambda iu: (iu[1][0], _vlm_call(iu[1][1], user_text, endpoints, iu[0] % len(endpoints))),
-                enumerate(items))
-            for u, m in verdicts:        # _vlm_call raises on failure -> m is a real verdict
-                cache[ckey(u)] = bool(m)
-        for u in todo:
-            cache.setdefault(ckey(u), False)
-        # try:
-        #     cache_path.parent.mkdir(parents=True, exist_ok=True)
-        #     json.dump(cache, open(cache_path, "w"))
-        # except Exception:
-        #     pass
-    keep = {u for u in track_candidates if cache.get(ckey(u))}
-    return {u: track_candidates[u] for u in keep}
+    candidates = list(track_candidates)
+    get_best_crop(str(candidates[0]), log_dir)        # warm per-log crop cache before threads
+    endpoints = _vlm_endpoints()
+    with _ThreadPool(max_workers=max_workers) as ex:
+        crops = dict(ex.map(lambda u: (u, _vlm_crop_b64(u, log_dir)), candidates))
+    items = [(u, b64) for u, b64 in crops.items() if b64]
+    with _ThreadPool(max_workers=max_workers) as ex:
+        verdicts = ex.map(
+            lambda iu: (iu[1][0], _vlm_call(iu[1][1], user_text, endpoints, iu[0] % len(endpoints))),
+            enumerate(items))
+        matched = {u for u, m in verdicts if m}
+    return {u: track_candidates[u] for u in matched}
 
 
 def get_clip_colors(images:list, possible_colors:list[str], pipe=None):

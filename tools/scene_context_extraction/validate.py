@@ -7,7 +7,7 @@ Walks a log dir (raw or processed) and checks every per-timestamp JSON has:
   - ego has the exact 15 key set, all bool
 
 Usage:
-    PYTHONPATH=. python -m tools.layer1_context.validate <log_dir>
+    PYTHONPATH=. python -m tools.scene_context_extraction.validate <log_dir>
 """
 
 import argparse
@@ -18,7 +18,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.layer1_context.src.schema import CAMERA_NAMES, CONTEXT_SCHEMA
+from tools.scene_context_extraction.src.schema import CAMERA_NAMES, CONTEXT_SCHEMA
 
 
 _PER_CAMERA_CATEGORIES = ("infra", "weather", "time_of_day")

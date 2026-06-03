@@ -14,7 +14,7 @@
 #   stop     stop the replicas this script started
 #   restart  stop, then start
 #   status   show which ports answer GET /v1/models
-#   check    run tools/vlm_server/check_vllm.py against the fleet
+#   check    run tools/vlm_server/check_connection.py against the fleet
 #
 # Usage:
 #   CKPT=/path/to/Qwen3.6-35B-A3B bash tools/scripts/run_vlm_server.sh
@@ -93,9 +93,9 @@ do_status() {
 
 # ── check: reuse the canonical smoke test against this fleet ─────────
 do_check() {
-  banner "check — tools/vlm_server/check_vllm.py"
+  banner "check — tools/vlm_server/check_connection.py"
   REFAV_VLM_ENDPOINTS="${ENDPOINTS}" REFAV_VLM_MODEL="${MODEL_NAME}" \
-    "${PY}" tools/vlm_server/check_vllm.py
+    "${PY}" tools/vlm_server/check_connection.py
 }
 
 # ── stop: kill native pidfiles, or remove docker containers ─────────
@@ -183,7 +183,7 @@ do_start() {
     done
   else
     command -v "${VLLM_BIN}" >/dev/null || { echo "[ERROR] '${VLLM_BIN}' not on PATH (run inside the vLLM env)."; exit 1; }
-    mkdir -p "${LOG_DIR}"2,3,
+    mkdir -p "${LOG_DIR}"
     banner "launch — native (${VLLM_BIN} serve)"
     for i in "${!GPU_ARR[@]}"; do
       local gpu="${GPU_ARR[i]}" port="${PORTS[i]}"

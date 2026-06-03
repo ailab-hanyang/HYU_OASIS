@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """
-Standalone smoke test for the VLM (Qwen) vLLM server connection.
+Test script for the VLM (Qwen) vLLM server connection.
 
-It verifies that the OpenAI-compatible vLLM endpoints used by the atomic functions
-`get_visual_actor` / `get_visual_behavior` (refAV/atomic_functions.py -> `_visual_filter`
-in refAV/utils.py) are reachable and answer a real multimodal chat completion.
-
-No project / dataset / heavy deps are needed: Python 3 standard library ONLY. A tiny
-JPEG is embedded below, so the full path (HTTP -> multimodal chat completion -> JSON
-parse) is exercised exactly like the real atomic-function call, which sends ONE image
-per request.
+Verifies the vLLM endpoints are reachable and answer a real multimodal chat completion,
+exercising the same request path as the visual atomic functions:
+  - `get_visual_actor`
+  - `get_visual_behavior`
+both defined in refAV/atomic_functions.py.
 
 Usage:
-    python tools/vlm_server/check_vllm.py
+    python tools/vlm_server/check_connection.py
     REFAV_VLM_ENDPOINTS=http://localhost:8000,http://localhost:8001 \
-        python tools/vlm_server/check_vllm.py
-    python tools/vlm_server/check_vllm.py --endpoints http://my-host:8000 --model qwen3.6-35b
+        python tools/vlm_server/check_connection.py
+    python tools/vlm_server/check_connection.py --endpoints http://my-host:8000 --model qwen3.6-35b
 
 Exit codes:
     0 = all endpoints healthy AND round-trip + JSON parse OK
@@ -52,10 +49,9 @@ DEFAULT_ENDPOINTS = (
     "http://localhost:8002,http://localhost:8003"
 )
 
-# Verbatim copy of refAV/utils.py::_VLM_SYSTEM so this smoke test exercises the REAL
-# production system prompt. A green run then implies the atoms' exact request (strict
-# prompt + enable_thinking=False + max_tokens=20) yields parseable JSON -- not merely
-# that the endpoint is reachable. KEEP IN SYNC with refAV/utils.py::_VLM_SYSTEM.
+# The production system prompt (refAV/utils.py::_VLM_SYSTEM, canonical), copied here
+# because this test imports nothing from refAV. Using the real prompt makes a green run
+# imply the atoms' exact request yields parseable JSON, not just that the host answers.
 VLM_SYSTEM = (
     "You are a precise visual classifier for an autonomous-driving perception dataset. "
     "Each image is a tight crop from a vehicle's ring camera showing ONE tracked road object; "
@@ -80,13 +76,10 @@ def check_health(base, timeout):
 
 
 def round_trip(base, model, timeout):
-    """Mirror refAV/utils.py::_vlm_call exactly: ONE image per request, thinking off,
-    and the SAME strict production system prompt (VLM_SYSTEM) + actor-shaped question.
-
-    The real call sends a single tight crop per track, so this sends one image too
-    (temperature=0, max_tokens=20, chat_template_kwargs enable_thinking=False). Using
-    the real system prompt means a model/template that reasons past max_tokens under
-    the strict prompt (and never emits the JSON) is caught here, not mid-run.
+    """Mirror refAV/utils.py::_vlm_call exactly: one image, thinking off (temperature=0,
+    max_tokens=20, enable_thinking=False), the strict VLM_SYSTEM prompt + an actor-shaped
+    question. So a model/template that reasons past max_tokens and never emits the JSON
+    is caught here, not mid-run.
     """
     payload = {
         "model": model,

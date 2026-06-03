@@ -1,4 +1,4 @@
-# layer1_context
+# Scene Context Extraction
 
 An L1 pipeline that attaches context labels to AV2 ring-camera images with a vLLM.
 The input is ring-camera JPEGs; the output is per-timestamp JSON (per-camera booleans
@@ -15,13 +15,13 @@ raw sensor frames + tracker feather 2Hz timestamps
    [annotate.engine]      (vLLM offline LLM.chat)
             │
             ▼
-   raw JSON  output/layer1_context/<split>/<log_id>/<ts>.json
+   raw JSON  output/scene_context/<split>/<log_id>/<ts>.json
             │
             ▼
    [postprocess.runner]  ─── majority-vote smoothing + confirmed-run dilation
             │
             ▼
-   processed JSON  output/layer1_context/<split>_processed/<log_id>/<ts>.json
+   processed JSON  output/scene_context/<split>_processed/<log_id>/<ts>.json
             │
             ▼
    refAV/utils.py:get_context_annotations  →  refAV/atomic_functions.py
@@ -31,7 +31,7 @@ raw sensor frames + tracker feather 2Hz timestamps
 
 | Path | Role |
 |---|---|
-| [annotate.py](annotate.py) · [postprocess.py](postprocess.py) · [validate.py](validate.py) | CLI entry points (`python -m tools.layer1_context.<name>`) |
+| [annotate.py](annotate.py) · [postprocess.py](postprocess.py) · [validate.py](validate.py) | CLI entry points (`python -m tools.scene_context_extraction.<name>`) |
 | [config/](config/) | `settings.yaml` (model path / vLLM options / input dataset) |
 | [src/](src/) | `schema.py` (`CONTEXT_SCHEMA`, `CAMERA_NAMES`, prompt strings) · `engine.py` (`VLLMAnnotator`) · `annotate_runner.py` (log iteration, batching, JSON saving) · `postprocess_runner.py` (smoothing+dilation) · `smoothing.py` (1D bool primitives) · `loader.py` (yaml → dict) |
 | [docker/](docker/) | `Dockerfile` + `run_container.sh` (vLLM runtime for the H100 server) |
@@ -78,28 +78,28 @@ Total categories/items: `infra` 7 / `ego` 15 / `weather` 4 / `time_of_day` 2 = *
 ### 0. Enter the container (on the host)
 
 ```bash
-bash tools/layer1_context/docker/run_container.sh
+bash tools/scene_context_extraction/docker/run_container.sh
 ```
 
 All subsequent commands run inside the container, from the repo root (`HYU_OASIS/`).
 
 The whole pipeline (annotate → postprocess → validate) runs via
-[`tools/scripts/run_layer1_context.sh`](../scripts/run_layer1_context.sh).
+[`tools/scripts/run_scene_context_extraction.sh`](../scripts/run_scene_context_extraction.sh).
 Overrides: `SPLIT`, `WORKERS`, `LOGS` (subset of logs), `CONFIG` (alt settings.yaml),
 `SKIP_VALIDATE`.
 
 ### 1. Smoke test — one log
 
 ```bash
-LOGS="02678d04-cc9f-3148-9f95-1ba66347dff9" bash tools/scripts/run_layer1_context.sh
+LOGS="02678d04-cc9f-3148-9f95-1ba66347dff9" bash tools/scripts/run_scene_context_extraction.sh
 ```
 
 ### 2. Full-split run
 
 ```bash
-bash tools/scripts/run_layer1_context.sh                  # whole val split
-WORKERS=8 bash tools/scripts/run_layer1_context.sh        # more postprocess workers
-SKIP_VALIDATE=1 bash tools/scripts/run_layer1_context.sh  # skip the validate stage
+bash tools/scripts/run_scene_context_extraction.sh                  # whole val split
+WORKERS=8 bash tools/scripts/run_scene_context_extraction.sh        # more postprocess workers
+SKIP_VALIDATE=1 bash tools/scripts/run_scene_context_extraction.sh  # skip the validate stage
 ```
 
 This is a long job, so `tmux`/`nohup` is recommended. On restart after an interruption it
@@ -108,15 +108,15 @@ resumes via the `existing` skip in [src/annotate_runner.py:91-92](src/annotate_r
 ### 3. Individual steps (as needed)
 
 ```bash
-PYTHONPATH=. python -m tools.layer1_context.annotate \
+PYTHONPATH=. python -m tools.scene_context_extraction.annotate \
     --log-ids <ID1> <ID2> --split val
-PYTHONPATH=. python -m tools.layer1_context.annotate --dry-run
+PYTHONPATH=. python -m tools.scene_context_extraction.annotate --dry-run
 
-PYTHONPATH=. python -m tools.layer1_context.postprocess \
+PYTHONPATH=. python -m tools.scene_context_extraction.postprocess \
     --split val --log-ids <ID> --workers 8
 
-PYTHONPATH=. python -m tools.layer1_context.validate \
-    output/layer1_context/val_processed/<ID>
+PYTHONPATH=. python -m tools.scene_context_extraction.validate \
+    output/scene_context/val_processed/<ID>
 ```
 
 `--log-ids` / `--split` override `dataset.log_ids` / `dataset.splits` in `settings.yaml`
@@ -126,7 +126,7 @@ PYTHONPATH=. python -m tools.layer1_context.validate \
 
 | Key | Meaning | Default |
 |---|---|---|
-| `paths.output_dir` | raw JSON output root (postprocess derives `_processed` from it) | `output/layer1_context` |
+| `paths.output_dir` | raw JSON output root (postprocess derives `_processed` from it) | `output/scene_context` |
 | `vlm.model_path` | checkpoint the vLLM loads (HF-style id or local path) | (set to your checkpoint) |
 | `vlm.tensor_parallel_size` | number of GPUs for TP sharding | 4 |
 | `vlm.max_model_len` | context length. ego 5-image + EGO_USER_PROMPT | 24576 |
@@ -145,6 +145,6 @@ PYTHONPATH=. python -m tools.layer1_context.validate \
 
 ## Troubleshooting
 
-- `ModuleNotFoundError: No module named 'tools.layer1_context'` → `PYTHONPATH=.` missing. Run from the repo root.
+- `ModuleNotFoundError: No module named 'tools.scene_context_extraction'` → `PYTHONPATH=.` missing. Run from the repo root.
 - `ModuleNotFoundError: No module named 'vllm'` → running on the host. Enter the container and retry.
 - OOM after vLLM engine init → lower `vlm.gpu_memory_utilization` (e.g. 0.92 → 0.85).

@@ -1,5 +1,5 @@
 """
-Context Layer — Prompts & Schema
+Scene Context — Prompts & Schema
 
 28 context items, VLM system/user prompts, camera name constants.
 """

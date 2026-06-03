@@ -38,7 +38,7 @@ from refAV.utils import (
     get_context_annotations, get_ego_annotations, get_turn_direction,
     get_median_polygons, _visual_filter,
     get_subcategory_text_embedding, get_siglip_logit_params, get_category_score_maps)
-from tools.layer1_context.src.schema import CONTEXT_SCHEMA as _CONTEXT_SCHEMA
+from tools.scene_context_extraction.src.schema import CONTEXT_SCHEMA as _CONTEXT_SCHEMA
 from shapely.geometry import Point as _ShPoint
 from functools import lru_cache
 
@@ -243,168 +243,6 @@ def is_category(track_candidates:dict, log_dir:Path, category:str):
         return []
 
 
-# RETIRED from the router (underscore = non-selectable): color is now covered by
-# get_visual_actor (VLM) via a color-bearing description, e.g. 'a white van'.
-# SigLIP implementation kept for reference; not exposed to the LLM, not layer-assigned.
-@composable
-@cache_manager.create_cache('is_color')
-def _is_color(
-    track_candidates: dict,
-    log_dir: Path,
-    color:Literal["white", "silver", "black", "red", "yellow", "blue"],
-) -> dict:
-    """
-    Returns objects that are the given color, determined by SIGLIP2 feature similarity.
-
-    Args:
-        track_candidates: The objects you want to filter from (scenario dictionary).
-        log_dir: Path to scenario logs.
-        color: The color of the objects you want to return. Must be one of 'white', 'silver',
-               'black', 'red', 'yellow', or 'blue'. Inputting a different color defaults to returning all objects.
-
-    Returns:
-        dict: 
-            A filtered scenario dictionary where:
-            - Keys are track UUIDs that meet the turning criteria.
-            - Values are nested dictionaries containing timestamps.
-
-    Example:
-        red_cars = is_color(cars, log_dir, color='red')
-    """
-    track_uuid = track_candidates
-    timestamps = get_timestamps(track_uuid, log_dir)
-
-    if (cache_manager.color_cache
-        and str(track_uuid) in cache_manager.color_cache
-        and ( cache_manager.color_cache[str(track_uuid)] is None
-            or cache_manager.color_cache[str(track_uuid)] != color)):
-        return []
-    else:
-        return timestamps
-
-    #TODO: Implement SIGLIP2 based color discrimination without pre-computed values
-    best_timestamp, best_camera, best_bbox = get_best_crop(track_uuid, log_dir)
-    if best_camera is None:
-        return []
-
-
-# RETIRED from the router (underscore = non-selectable): superseded by the VLM
-# atoms get_visual_actor / get_visual_behavior. SigLIP implementation kept for
-# reference / A-B comparison; not exposed to the LLM and not layer-assigned.
-def _get_subcategory_object(track_candidates: dict, log_dir: Path, prompt: str,
-                           similarity_ratio: float | None = None,
-                           min_prob: float = 0.10) -> dict:
-    """
-    Narrows a coarse set of track candidates down to a named actor SUBCATEGORY that is not in
-    the AV2 category list (e.g. 'police car', 'ambulance', 'forklift', 'school bus',
-    'cement mixer', 'vehicle carrying a bicycle'), using SigLIP2 image-vs-text
-    similarity on each track's best camera crop.
-
-    Use this AFTER gathering a BROAD candidate set with get_objects_of_category / scenario_or.
-    This function only FILTERS (removes non-matching tracks); it never adds tracks, so the
-    candidate set must already contain the target. AV2 trackers label named subcategories under
-    coarse classes, so gather widely first:
-
-        forklift, utility vehicle (UTV)            -> WHEELED_DEVICE   (REQUIRED; not a vehicle class)
-        excavator                                  -> LARGE_VEHICLE + WHEELED_DEVICE
-        cement mixer                               -> TRUCK
-        delivery truck                             -> TRUCK + BOX_TRUCK + LARGE_VEHICLE
-        ambulance, tow truck, fire truck           -> TRUCK + LARGE_VEHICLE + BOX_TRUCK (+ VEHICULAR_TRAILER)
-        police car, cop car, taxi, robotaxi        -> REGULAR_VEHICLE
-        construction worker, traffic officer,
-            road-work crew, child (any person)     -> PEDESTRIAN
-
-    Scope -- the deciding test:
-      The subcategory must be confirmable from a SINGLE still crop of the actor itself. SigLIP2
-      sees ONE frame and ONE global appearance, so it only works when the distinguishing evidence
-      is (1) static (no motion over time), (2) inside the actor's own crop, and (3) a salient
-      overall look -- not a tiny detail. If a prompt fails this test, this function keeps the
-      WRONG tracks (or drops the right one) and HOTA-Temporal DROPS. So do not reach for it just
-      because a prompt "sounds visual"; route the cases below to relational / temporal atomics.
-
-      DO use for:
-        - an actor whose TYPE is a recognizable look that AV2 does not label as its own class:
-          police car, ambulance, forklift, cement mixer, school bus, construction worker, child.
-        - an actor defined by ANOTHER object that usually sits within its crop -- whether carried /
-          ridden (vehicle carrying a bicycle, person on a rideable lawnmower) or closely handled
-          (person on a ladder, person with a shopping cart). The companion object lands in the
-          padded crop, so a single image shows it. (Recall tracks how fully it fits the crop:
-          a bike bolted onto a car ~1.0, a cart held loosely beside a person ~0.3 -- still usable.)
-        - a salient static APPEARANCE that AV2 has no field for -- most commonly COLOR ('red car',
-          'white truck') or a whole-object covering ('car under a cover'). It fills the crop, so a
-          single image shows it plainly.
-
-      Do NOT use for:
-        - TEMPORAL or sequential behavior: 'bus signaling to merge', 'flashing lights', 'accelerating',
-          'turning', 'merging', 'braking'. A single frame has no motion -> use motion / relational atomics.
-        - a small LOCALIZED state: 'parked car with turned wheels', 'reverse lights on', 'turn signal on'.
-          Global pooling misses tiny cues -> use the geometry / state atomics.
-
-    Args:
-        track_candidates: The coarse candidate scenario dict to filter (gather broadly first).
-        log_dir: Path to scenario logs.
-        prompt: Free-text subcategory description, e.g. 'police car', 'forklift'.
-        similarity_ratio: Optional override for the relative keep cut (keep tracks whose match
-            probability >= ratio * max). Leave None to auto-select by candidate type.
-        min_prob: Floor on absolute match probability; guards against keeping anything when the
-            true subcategory is absent from the candidates.
-
-    Returns:
-        dict: A filtered scenario dict (subset of track_candidates) keeping only tracks whose crop
-        matches the prompt; original timestamps are preserved.
-
-    Example:
-        # police cars are labeled REGULAR_VEHICLE in AV2 (not a named class)
-        vehicles = get_objects_of_category(log_dir, category='REGULAR_VEHICLE')
-        police_cars = get_subcategory_object(vehicles, log_dir, prompt='police car')
-        output_scenario(police_cars, description, log_dir, output_dir)
-
-        # forklift is labeled WHEELED_DEVICE -- gather broadly, then narrow
-        candidates = scenario_or([get_objects_of_category(log_dir, category=c)
-                                  for c in ['WHEELED_DEVICE','LARGE_VEHICLE','TRUCK']])
-        forklifts = get_subcategory_object(candidates, log_dir, prompt='forklift')
-        output_scenario(forklifts, description, log_dir, output_dir)
-    """
-    if cache_manager.crop_embedding_cache is None:
-        raise FileNotFoundError(
-            f"crop_embeddings.npz missing for {log_dir}. Build it first with "
-            "build_crop_embedding_caches / tools/build_crop_embeddings.py "
-            "(or construct_caches) before calling get_subcategory_object."
-        )
-
-    text_emb = get_subcategory_text_embedding(prompt)
-    emb_cache = cache_manager.crop_embedding_cache
-    cat_map, _ = get_category_score_maps(log_dir)
-    scale, bias = get_siglip_logit_params()
-
-    probs = {}
-    for uuid in track_candidates:
-        su = str(uuid)
-        v = emb_cache.get(su)
-        if v is None:                                  # no embedding (built only above the score floor) -> non-match
-            continue
-        cos = float(np.dot(v.astype(np.float32), text_emb))
-        probs[uuid] = 1.0 / (1.0 + np.exp(-(cos * scale + bias)))
-    if not probs:
-        return {}
-
-    # Tracker categories that count as a "person". When every surviving candidate is one
-    # of these, people-vs-people matching is cleaner, so a looser keep cut recovers more.
-    person_cats = {"PEDESTRIAN", "OFFICIAL_SIGNALER", "BICYCLIST", "MOTORCYCLIST", "WHEELED_RIDER"}
-    # Keep tracks scoring within this fraction of the best match. People are clean, so a
-    # loose cut; vehicles confuse with other vehicles, so a stricter cut.
-    subcat_ratio = {"PERSON": 0.10, "VEHICLE": 0.45}
-
-    cats = {cat_map.get(str(u)) for u in probs}
-    cats.discard(None)
-    bucket = "PERSON" if cats and cats <= person_cats else "VEHICLE"
-    r = similarity_ratio if similarity_ratio is not None else subcat_ratio[bucket]
-
-    pmax = max(probs.values())
-    keep = {u for u, p in probs.items() if p >= r * pmax and p >= min_prob}
-    return {u: track_candidates[u] for u in keep}      # preserve timestamps
-
-
 @cache_manager.create_cache('_is_weather_log_majority')
 def _is_weather_log_majority(log_dir: Path, condition: str) -> bool:
     """Log-level majority vote for weather condition. Independent of track_uuid,
@@ -433,7 +271,7 @@ def is_weather(
 ) -> dict:
     """
     Returns objects from the log when the scene's weather matches the given condition,
-    as labeled by the Context Layer VLM on the front camera. Weather is evaluated at
+    as labeled by the Scene Context VLM on the front camera. Weather is evaluated at
     log level: the whole log either matches or does not, determined by a majority vote
     across per-timestamp front-camera annotations.
 
@@ -492,7 +330,7 @@ def is_time_of_day(
 ) -> dict:
     """
     Returns objects from the log when the scene's time of day matches the given period,
-    as labeled by the Context Layer VLM on the front camera. Time of day is evaluated
+    as labeled by the Scene Context VLM on the front camera. Time of day is evaluated
     at log level: the whole log either matches or does not, determined by a majority
     vote across per-timestamp front-camera annotations.
 
@@ -538,7 +376,7 @@ def near_infrastructure(
         "green_light", "yellow_light", "broken_traffic_light",
     ],
 ) -> dict:
-    """Filter tracks to timestamps where a Context Layer VLM infrastructure
+    """Filter tracks to timestamps where a Scene Context VLM infrastructure
     label holds. The category of ``infrastructure`` (not the track type) drives
     the matching path. Labels are either per-camera (VLM flag in a ring camera)
     or ego-only (scene-level: ego vehicle is on/inside the item); see the
@@ -567,7 +405,7 @@ def near_infrastructure(
     Args:
         track_candidates: Tracks to filter (scenario dictionary).
         log_dir: Path to scenario logs.
-        infrastructure: Context Layer label (see Literal for members). An
+        infrastructure: Scene Context label (see Literal for members). An
             unrecognized label returns an empty result.
 
     Returns:
@@ -2809,7 +2647,7 @@ def near_construction_objects(
 
     Distinct from near_infrastructure(..., 'construction_zone'): this function
     is 3D proximity to physical construction markers (per-track, per-timestamp),
-    whereas near_infrastructure uses Context Layer VLM labels (scene-level).
+    whereas near_infrastructure uses Scene Context VLM labels (scene-level).
     Prefer this for "X near/in construction zone", "X near construction
     cone/barrel", "X at work zone".
 
