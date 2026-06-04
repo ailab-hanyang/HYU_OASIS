@@ -10,7 +10,7 @@
 # --- core: Argoverse2 devkit (scenario-mining fork) + eval ---
 git+https://github.com/CainanD/av2-api-sm.git
 git+https://github.com/JonathonLuiten/TrackEval.git
-numpy
+numpy==2.2.6
 pandas
 scipy
 tqdm
@@ -24,10 +24,10 @@ pycocotools
 pathos
 ipykernel
 
-# --- deep learning (match your CUDA; torchvision pulls a compatible torch) ---
-torch
-torchvision
-transformers
+# --- deep learning (match your CUDA; install cu128 build via --index-url, see README) ---
+torch==2.10.0
+torchvision==0.25.0
+transformers==5.3.0
 accelerate
 huggingface_hub
 

@@ -4,7 +4,7 @@ from typing import Any, Dict
 import yaml
 
 
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "settings.yaml"
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "settings.yaml"
 
 
 def load_config(config_path: str = None) -> Dict[str, Any]:

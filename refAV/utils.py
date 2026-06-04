@@ -876,8 +876,23 @@ def _vlm_call(b64, user_text, endpoints, start_idx=0):
 
     payload = {
         "model": os.environ.get("REFAV_VLM_MODEL", "qwen3.6-35b"),
-        "temperature": 0.0, "max_tokens": 20,
+        "temperature": 0.0, "max_tokens": 32,
         "chat_template_kwargs": {"enable_thinking": False},
+        # Force a parseable {"match": bool} verdict. Some served checkpoints
+        # (e.g. Qwen3.6-A3B on images) ignore the JSON-only instruction and
+        # reply in prose; json_schema guided decoding constrains the format
+        # without changing the (temperature-0) verdict.
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "verdict",
+                "schema": {
+                    "type": "object",
+                    "properties": {"match": {"type": "boolean"}},
+                    "required": ["match"],
+                },
+            },
+        },
         "messages": [
             {"role": "system", "content": _VLM_SYSTEM},
             {"role": "user", "content": [

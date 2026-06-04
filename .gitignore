@@ -5,5 +5,13 @@ __pycache__/
 # debug
 /.vscode/
 /.claude/
-/.codex/
 .env
+
+# local dataset & prediction symlinks (keep placeholder dirs via .gitkeep)
+/data/datasets/
+/scenario_mining_downloads/*
+!/scenario_mining_downloads/.gitkeep
+
+# output
+/output/*
+!/output/.gitkeep

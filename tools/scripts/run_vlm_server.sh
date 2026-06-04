@@ -59,6 +59,7 @@ MODE="${MODE:-docker}"                             # docker (default) | native
 TP="${TP:-1}"
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.85}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-8192}"
+MAX_NUM_SEQS="${MAX_NUM_SEQS:-256}"               # Mamba-hybrid (Qwen3.6-A3B): must be <= available mamba cache blocks
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-900}"
 DOCKER_IMAGE="${DOCKER_IMAGE:-vllm/vllm-openai:latest}"
 VLLM_BIN="${VLLM_BIN:-vllm}"
@@ -179,7 +180,7 @@ do_start() {
         "${DOCKER_IMAGE}" \
         --model "${CKPT}" --served-model-name "${MODEL_NAME}" \
         --tensor-parallel-size "${TP}" --gpu-memory-utilization "${GPU_MEM_UTIL}" \
-        --max-model-len "${MAX_MODEL_LEN}" --trust-remote-code --port 8000 >/dev/null
+        --max-model-len "${MAX_MODEL_LEN}" --max-num-seqs "${MAX_NUM_SEQS}" --trust-remote-code --port 8000 >/dev/null
     done
   else
     command -v "${VLLM_BIN}" >/dev/null || { echo "[ERROR] '${VLLM_BIN}' not on PATH (run inside the vLLM env)."; exit 1; }
@@ -195,6 +196,7 @@ do_start() {
         --tensor-parallel-size "${TP}" \
         --gpu-memory-utilization "${GPU_MEM_UTIL}" \
         --max-model-len "${MAX_MODEL_LEN}" \
+        --max-num-seqs "${MAX_NUM_SEQS}" \
         --trust-remote-code \
         --port "${port}" > "${log}" 2>&1 &
       echo $! > "${pidf}"
